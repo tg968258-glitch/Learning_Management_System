@@ -1,0 +1,13 @@
+2026-08-07 12:15:42,013 - INFO - Student 104 enrolled in Course 204
+2026-08-07 14:08:05,310 - INFO - Student Added: 106
+2026-08-07 14:10:24,940 - INFO - Student Updated: 106
+2026-08-07 14:14:52,382 - WARNING - Student Not Found: 106
+2026-08-07 14:14:52,382 - WARNING - Student Not Found: 106
+2026-08-07 14:14:52,382 - WARNING - Student Not Found: 106
+2026-08-07 14:14:52,426 - WARNING - Student Not Found: 106
+2026-08-07 14:14:52,427 - WARNING - Student Not Found: 106
+2026-08-07 14:14:52,431 - INFO - Student Deleted: 106
+2026-08-07 14:21:00,111 - INFO - Course Added: 206
+2026-08-07 14:22:01,342 - INFO - Course Updated: 206
+2026-08-07 14:23:05,313 - INFO - Student 104 enrolled in Course 206
+2026-08-07 14:53:39,887 - INFO - Student Updated: 103

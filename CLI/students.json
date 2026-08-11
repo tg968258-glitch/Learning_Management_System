@@ -1,0 +1,47 @@
+[
+    {
+        "student_id": 101,
+        "name": "Aarav Sharma",
+        "age": 19,
+        "email": "aarav.sharma@example.com",
+        "gender": "Male",
+        "percentage": 88.5,
+        "phone_number": "9876543210"
+    },
+    {
+        "student_id": 102,
+        "name": "Priya Singh",
+        "age": 20,
+        "email": "priya.singh@example.com",
+        "gender": "Female",
+        "percentage": 91.2,
+        "phone_number": "9123456789"
+    },
+    {
+        "student_id": 103,
+        "name": "Rahul Verma",
+        "age": 18,
+        "email": "rahul.verma@example.com",
+        "gender": "Male",
+        "percentage": 76.8,
+        "phone_number": "9988776655"
+    },
+    {
+        "student_id": 104,
+        "name": "Sneha Patel",
+        "age": 21,
+        "email": "sneha.patel@example.com",
+        "gender": "Female",
+        "percentage": 95.4,
+        "phone_number": "9012345678"
+    },
+    {
+        "student_id": 105,
+        "name": "Karan Mehta",
+        "age": 22,
+        "email": "karan.mehta@example.com",
+        "gender": "Male",
+        "percentage": 82.9,
+        "phone_number": "9765432101"
+    }
+]
