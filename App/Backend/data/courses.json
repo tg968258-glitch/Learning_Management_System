@@ -1,0 +1,38 @@
+[
+    {
+        "course_id": 201,
+        "course_name": "Python Programming",
+        "trainer": "Amit Sharma",
+        "duration": "8 Weeks"
+    },
+    {
+        "course_id": 202,
+        "course_name": "Java Programming",
+        "trainer": "Priya Verma",
+        "duration": "10 Weeks"
+    },
+    {
+        "course_id": 203,
+        "course_name": "Web Development",
+        "trainer": "Rahul Mehta",
+        "duration": "12 Weeks"
+    },
+    {
+        "course_id": 204,
+        "course_name": "Data Structures and Algorithms",
+        "trainer": "Neha Kapoor",
+        "duration": "14 Weeks"
+    },
+    {
+        "course_id": 205,
+        "course_name": "Database Management Systems",
+        "trainer": "Vikas Singh",
+        "duration": "6 Weeks"
+    },
+    {
+        "course_id": 206,
+        "course_name": "English",
+        "trainer": "Naiej",
+        "duration": "43 Days"
+    }
+]
