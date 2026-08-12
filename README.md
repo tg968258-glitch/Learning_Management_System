@@ -22,11 +22,8 @@ The Learning Management System simplifies the teaching and learning process by a
 ## Database Entities
 
 - Students
-- Teachers
 - Courses
 - Enrollments
-- Assignments
-- Learning History
 
 ---
 
