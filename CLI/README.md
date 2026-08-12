@@ -175,9 +175,3 @@ Example log:
 - CSV Export
 - SQLite Database Integration
 - Colorful CLI Interface
-
----
-
-## Author
-
-Developed by Tanvi Gupta
