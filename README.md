@@ -13,7 +13,7 @@ The Learning Management System simplifies the teaching and learning process by a
 - Manage courses and learning materials
 - Enroll students in courses
 - Submit and review assignments
-- Track learning progress
+- Tracking learning progress
 - Generate AI-based course recommendations
 - Manage users through an admin dashboard
 
