@@ -55,6 +55,28 @@ The Learning Management System (LMS) is a Command Line Interface (CLI) applicati
 
 ---
 
+## Project Structure
+
+```
+LMS/
+│
+├── main.py
+├── filehandler.py
+├── input_validator.py
+├── numeric_validator.py
+├── string_sanitizer.py
+├── logger.py
+│
+├── students.json
+├── courses.json
+├── enrollments.json
+│
+├── lms.log
+└── README.md
+```
+
+---
+
 ## How to Run
 
 Open Command Prompt or Terminal.
@@ -93,6 +115,7 @@ python main.py
 
 13. Exit
 ```
+
 ---
 
 ## Data Storage
@@ -152,9 +175,3 @@ Example log:
 - CSV Export
 - SQLite Database Integration
 - Colorful CLI Interface
-
----
-
-## Author
-
-Developed by Tanvi Gupta
