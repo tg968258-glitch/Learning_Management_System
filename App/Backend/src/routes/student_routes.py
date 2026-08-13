@@ -3,8 +3,8 @@ from Backend.src.services.student_service import (
     get_all_students,
     get_student,
     create_student,
-    update_student_data,
-    remove_student
+    update_student,
+    delete_student
 )
 
 router = APIRouter(prefix="/students", tags=["Students"])
@@ -43,10 +43,9 @@ def add_new_student(student: dict):
 @router.put("/{student_id}")
 def update_existing_student(
     student_id: int,
-    student_data: dict
-):
+    student_data: dict ):
 
-    result = update_student_data(
+    result = update_student(
         student_id,
         student_data
     )
@@ -66,7 +65,7 @@ def update_existing_student(
 @router.delete("/{student_id}")
 def delete_existing_student(student_id: int):
 
-    result = remove_student(student_id)
+    result = delete_student(student_id)
 
     if not result:
         raise HTTPException(

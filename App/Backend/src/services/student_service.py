@@ -1,46 +1,97 @@
 from Backend.src.services.filehandler import (
-    load_students,
-    search_student,
-    add_student,
-    update_student,
-    delete_student
+    STUDENTS_FILE,
+    load_data,
+    save_data
 )
+
+from Backend.src.utils.logger import logger
 
 
 def get_all_students():
-    return load_students()
+    return load_data(STUDENTS_FILE)
 
 
 def get_student(student_id):
-    student = search_student(student_id)
+    students = load_data(STUDENTS_FILE)
 
-    if not student:
-        return None
+    for student in students:
+        if student["student_id"] == student_id:
+            return student
 
-    return student
-
-
-def create_student(student):
-    add_student(student)
-    return student
+    return None
 
 
-def update_student_data(student_id, updated_data):
-    student = search_student(student_id)
+def generate_student_id():
+    students = load_data(STUDENTS_FILE)
 
-    if not student:
-        return None
+    if not students:
+        return 101
 
-    update_student(student_id, updated_data)
+    last_id = max(
+        student["student_id"]
+        for student in students
+    )
 
-    return search_student(student_id)
+    return last_id + 1
 
 
-def remove_student(student_id):
-    student = search_student(student_id)
+def create_student(student_data):
 
-    if not student:
-        return False
+    students = load_data(STUDENTS_FILE)
 
-    delete_student(student_id)
-    return True
+    # Generate ID
+    student_id = generate_student_id()
+
+    student_data["student_id"] = student_id
+
+    students.append(student_data)
+
+    save_data(STUDENTS_FILE, students)
+
+    logger.info(
+        f"Student Added: {student_id}"
+    )
+
+    return student_data
+
+
+def update_student(student_id, updated_data):
+
+    students = load_data(STUDENTS_FILE)
+
+    for student in students:
+
+        if student["student_id"] == student_id:
+
+            student.update(updated_data)
+
+            save_data(STUDENTS_FILE, students)
+
+            logger.info(
+                f"Student Updated: {student_id}"
+            )
+
+            return student
+
+    return None
+
+
+def delete_student(student_id):
+
+    students = load_data(STUDENTS_FILE)
+
+    for index, student in enumerate(students):
+
+        if student["student_id"] == student_id:
+
+            deleted_student = students.pop(index)
+
+            save_data(STUDENTS_FILE, students)
+
+            logger.info(
+                f"Student Deleted: {student_id}"
+            )
+
+            return deleted_student
+
+    return None

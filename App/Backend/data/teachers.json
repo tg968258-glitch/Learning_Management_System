@@ -1,0 +1,11 @@
+[
+    {
+        "teacher_id": 301,
+        "name": "Rahul Sharma",
+        "email": "rahul@lms.com",
+        "phone_number": "9876543210",
+        "specialization": "Python Programming",
+        "qualification": "M.Tech Computer Science",
+        "experience": 5
+    }
+]

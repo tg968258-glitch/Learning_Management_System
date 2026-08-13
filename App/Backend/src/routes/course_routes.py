@@ -1,22 +1,34 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
+
 from Backend.src.services.course_service import (
     get_all_courses,
     get_course,
     create_course,
-    update_course_data,
-    remove_course
+    update_course,
+    delete_course,
+    get_course_syllabus,
+    update_course_syllabus
 )
 
-router = APIRouter(prefix="/courses", tags=["Courses"])
 
+router = APIRouter(
+    prefix="/courses",
+    tags=["Courses"]
+)
+
+
+# =========================
+# COURSE CRUD
+# =========================
 
 @router.get("/")
 def get_courses():
+
     return get_all_courses()
 
 
 @router.get("/{course_id}")
-def get_single_course(course_id: int):
+def get_course_by_id(course_id: int):
 
     course = get_course(course_id)
 
@@ -30,45 +42,39 @@ def get_single_course(course_id: int):
 
 
 @router.post("/")
-def add_new_course(course: dict):
+def add_course(course: dict):
 
-    result = create_course(course)
-
-    return {
-        "message": "Course added successfully",
-        "course": result
-    }
+    return create_course(course)
 
 
 @router.put("/{course_id}")
-def update_existing_course(
+def edit_course(
     course_id: int,
-    course_data: dict
+    course: dict
 ):
 
-    result = update_course_data(
+    updated_course = update_course(
         course_id,
-        course_data
+        course
     )
 
-    if not result:
+    if not updated_course:
         raise HTTPException(
             status_code=404,
             detail="Course not found"
         )
 
-    return {
-        "message": "Course updated successfully",
-        "course": result
-    }
+    return updated_course
 
 
 @router.delete("/{course_id}")
-def delete_existing_course(course_id: int):
+def remove_course(course_id: int):
 
-    result = remove_course(course_id)
+    deleted_course = delete_course(
+        course_id
+    )
 
-    if not result:
+    if not deleted_course:
         raise HTTPException(
             status_code=404,
             detail="Course not found"
@@ -76,4 +82,51 @@ def delete_existing_course(course_id: int):
 
     return {
         "message": "Course deleted successfully"
+    }
+
+
+# =========================
+# SYLLABUS
+# =========================
+
+@router.get("/{course_id}/syllabus")
+def get_syllabus(course_id: int):
+
+    syllabus = get_course_syllabus(
+        course_id
+    )
+
+    if syllabus is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Course not found"
+        )
+
+    return {
+        "course_id": course_id,
+        "syllabus": syllabus
+    }
+
+
+@router.put("/{course_id}/syllabus")
+def update_syllabus(
+    course_id: int,
+    syllabus: list = Body(...)
+):
+
+    updated_course = update_course_syllabus(
+        course_id,
+        syllabus
+    )
+
+    if not updated_course:
+        raise HTTPException(
+            status_code=404,
+            detail="Course not found"
+        )
+
+    return {
+        "message": "Syllabus updated successfully",
+        "course_id": course_id,
+        "syllabus": updated_course["syllabus"]
     }
