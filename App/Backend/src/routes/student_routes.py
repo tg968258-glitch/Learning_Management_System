@@ -37,13 +37,6 @@ class Student(BaseModel):
     percentage: float
     phone_number: str
 
-class StudentUpdate(Student):
-    name: str | None = None
-    age: int | None = None
-    email: str | None = None
-    gender: str | None = None
-    percentage: float | None = None
-    phone_number: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -110,6 +103,14 @@ class StudentUpdate(Student):
             raise ValueError("Phone number must contain exactly 10 digits")
 
         return value
+
+class StudentUpdate(Student):
+    name: str | None = None
+    age: int | None = None
+    email: str | None = None
+    gender: str | None = None
+    percentage: float | None = None
+    phone_number: str | None = None
 
 
 @router.get("/")

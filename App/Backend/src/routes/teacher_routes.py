@@ -35,15 +35,6 @@ class Teacher(BaseModel):
     qualification: str
     experience: int
 
-class TeacherUpdate(Teacher):
-    name: str | None = None
-    email: str | None = None
-    phone_number: str | None = None
-    specialization: str | None = None
-    qualification: str | None = None
-    experience: int | None = None
-
-
     @field_validator("name")
     @classmethod
     def validate_name(cls, value):
@@ -118,6 +109,14 @@ class TeacherUpdate(Teacher):
             )
 
         return value
+
+class TeacherUpdate(Teacher):
+    name: str | None = None
+    email: str | None = None
+    phone_number: str | None = None
+    specialization: str | None = None
+    qualification: str | None = None
+    experience: int | None = None
 
 
 # =========================
