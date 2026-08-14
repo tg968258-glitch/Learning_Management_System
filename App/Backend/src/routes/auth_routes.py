@@ -1,5 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from Backend.src.utils.input_validator import (
+    is_empty,
+    validate_length,
+    is_valid_email
+)
 
 from Backend.src.services.auth_service import (
     register_user,
@@ -19,10 +25,79 @@ class RegisterRequest(BaseModel):
     password: str
     role: str
 
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value):
+        if is_empty(value):
+            raise ValueError("Username cannot be empty")
+
+        if not validate_length(value, 3, 50):
+            raise ValueError(
+                "Username must be between 3 and 50 characters"
+            )
+
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        if is_empty(value):
+            raise ValueError("Email cannot be empty")
+
+        if not is_valid_email(value):
+            raise ValueError("Invalid email format")
+
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value):
+        if is_empty(value):
+            raise ValueError("Password cannot be empty")
+
+        if not validate_length(value, 8, 100):
+            raise ValueError(
+                "Password must be between 8 and 100 characters"
+            )
+
+        return value
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value):
+        if is_empty(value):
+            raise ValueError("Role cannot be empty")
+
+        return value
+
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        if is_empty(value):
+            raise ValueError("Email cannot be empty")
+
+        if not is_valid_email(value):
+            raise ValueError("Invalid email format")
+
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value):
+        if is_empty(value):
+            raise ValueError("Password cannot be empty")
+
+        if not validate_length(value, 8, 100):
+            raise ValueError(
+                "Password must be between 8 and 100 characters"
+            )
+
+        return value
 
 
 @router.post("/register")

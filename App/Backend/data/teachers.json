@@ -7,5 +7,14 @@
         "specialization": "Python Programming",
         "qualification": "M.Tech Computer Science",
         "experience": 5
+    },
+    {
+        "teacher_id": 302,
+        "name": "Priya Mehta",
+        "email": "priya.mehta@example.com",
+        "phone_number": "9876543224",
+        "specialization": "Web Development",
+        "qualification": "MCA",
+        "experience": 3
     }
 ]

@@ -1,4 +1,11 @@
 from fastapi import APIRouter, HTTPException, Body
+from pydantic import BaseModel, field_validator
+
+from Backend.src.utils.input_validator import (
+    is_empty,
+    validate_length,
+    is_alpha
+)
 
 from Backend.src.services.course_service import (
     get_all_courses,
@@ -9,6 +16,46 @@ from Backend.src.services.course_service import (
     get_course_syllabus,
     update_course_syllabus
 )
+
+class Course(BaseModel):
+    course_name: str
+    duration: str
+
+    @field_validator("course_name")
+    @classmethod
+    def validate_course_name(cls, value):
+        if is_empty(value):
+            raise ValueError("Course name cannot be empty")
+
+        if not is_alpha(value):
+            raise ValueError(
+                "Course name must contain only alphabets and spaces"
+            )
+
+        if not validate_length(value, 2, 100):
+            raise ValueError(
+                "Course name must be between 2 and 100 characters"
+            )
+
+        return value
+
+    @field_validator("duration")
+    @classmethod
+    def validate_duration(cls, value):
+        if is_empty(value):
+            raise ValueError("Duration cannot be empty")
+
+        if not validate_length(value, 1, 50):
+            raise ValueError(
+                "Duration must be between 1 and 50 characters"
+            )
+
+        return value
+
+
+class CourseUpdate(Course):
+    course_name: str | None = None
+    duration: str | None = None
 
 
 router = APIRouter(
@@ -42,20 +89,19 @@ def get_course_by_id(course_id: int):
 
 
 @router.post("/")
-def add_course(course: dict):
-
-    return create_course(course)
+def add_course(course: Course):
+    return create_course(course.model_dump())
 
 
 @router.put("/{course_id}")
 def edit_course(
     course_id: int,
-    course: dict
+    course: CourseUpdate
 ):
 
     updated_course = update_course(
         course_id,
-        course
+        course.model_dump(exclude_unset=True)
     )
 
     if not updated_course:
