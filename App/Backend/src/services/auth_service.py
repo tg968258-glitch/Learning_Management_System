@@ -1,11 +1,6 @@
-from Backend.src.services.filehandler import (
-    USERS_FILE,
-    load_data,
-    save_data
-)
-
 from pwdlib import PasswordHash
 
+from Backend.src.services.filehandler import USERS_FILE, load_data, save_data
 
 password_hash = PasswordHash.recommended()
 

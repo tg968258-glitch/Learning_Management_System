@@ -1,11 +1,10 @@
 from Backend.src.services.filehandler import (
-    STUDENTS_FILE,
     COURSES_FILE,
     ENROLLMENTS_FILE,
+    STUDENTS_FILE,
     load_data,
-    save_data
+    save_data,
 )
-
 from Backend.src.utils.logger import logger
 
 

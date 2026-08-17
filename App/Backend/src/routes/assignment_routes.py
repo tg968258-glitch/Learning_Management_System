@@ -1,24 +1,21 @@
-from fastapi import APIRouter, HTTPException
 from datetime import date
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
-from Backend.src.utils.input_validator import (
-    is_empty,
-    validate_length,
-    is_alpha
-)
-from Backend.src.utils.numeric_validator import (is_positive)
 
 from Backend.src.services.assignment_service import (
+    create_assignment,
+    delete_assignment,
     get_all_assignments,
     get_assignment_by_id,
-    get_assignments_by_course,
-    create_assignment,
-    update_assignment,
-    delete_assignment,
-    submit_assignment,
     get_assignment_submissions,
-    update_submission
+    get_assignments_by_course,
+    submit_assignment,
+    update_assignment,
+    update_submission,
 )
+from Backend.src.utils.input_validator import is_empty, validate_length
+from Backend.src.utils.numeric_validator import is_positive
 
 router = APIRouter(
     prefix="/assignments",

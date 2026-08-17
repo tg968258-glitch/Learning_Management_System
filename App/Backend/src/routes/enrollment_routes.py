@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
-from Backend.src.utils.numeric_validator import is_positive
+
 from Backend.src.services.enrollment_service import (
+    create_enrollment,
     get_all_enrollments,
-    create_enrollment
 )
+from Backend.src.utils.numeric_validator import is_positive
 
 router = APIRouter(
     prefix="/enrollments",

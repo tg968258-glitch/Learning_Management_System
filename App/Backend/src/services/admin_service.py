@@ -1,10 +1,10 @@
 from Backend.src.services.filehandler import (
-    STUDENTS_FILE,
+    ASSIGNMENTS_FILE,
     COURSES_FILE,
     ENROLLMENTS_FILE,
+    STUDENTS_FILE,
     TEACHERS_FILE,
-    ASSIGNMENTS_FILE,
-    load_data
+    load_data,
 )
 
 

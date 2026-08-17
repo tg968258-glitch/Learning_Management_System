@@ -1,5 +1,6 @@
 import re
 
+
 def is_empty(value) -> bool:
     """
     Check whether the given string is empty.

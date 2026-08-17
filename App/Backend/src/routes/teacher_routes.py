@@ -1,26 +1,20 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
 
-from Backend.src.utils.input_validator import (
-    is_empty,
-    validate_length,
-    is_alpha,
-    is_valid_email
-)
-
-from Backend.src.utils.numeric_validator import (
-    is_positive,
-    is_phone_number
-)
-
 from Backend.src.services.teacher_service import (
+    create_teacher,
+    delete_teacher,
     get_all_teachers,
     get_teacher,
-    create_teacher,
     update_teacher,
-    delete_teacher
 )
-
+from Backend.src.utils.input_validator import (
+    is_alpha,
+    is_empty,
+    is_valid_email,
+    validate_length,
+)
+from Backend.src.utils.numeric_validator import is_phone_number, is_positive
 
 router = APIRouter(
     prefix="/teachers",

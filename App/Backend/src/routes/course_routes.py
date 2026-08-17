@@ -1,21 +1,19 @@
-from fastapi import APIRouter, HTTPException, Body
+from typing import Annotated
+
+from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, field_validator
 
-from Backend.src.utils.input_validator import (
-    is_empty,
-    validate_length,
-    is_alpha
-)
-
 from Backend.src.services.course_service import (
+    create_course,
+    delete_course,
     get_all_courses,
     get_course,
-    create_course,
-    update_course,
-    delete_course,
     get_course_syllabus,
-    update_course_syllabus
+    update_course,
+    update_course_syllabus,
 )
+from Backend.src.utils.input_validator import is_alpha, is_empty, validate_length
+
 
 class Course(BaseModel):
     course_name: str
@@ -157,7 +155,7 @@ def get_syllabus(course_id: int):
 @router.put("/{course_id}/syllabus")
 def update_syllabus(
     course_id: int,
-    syllabus: list = Body(...)
+    syllabus: Annotated[list, Body()]
 ):
 
     updated_course = update_course_syllabus(

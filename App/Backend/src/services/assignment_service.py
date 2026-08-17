@@ -1,4 +1,4 @@
-from Backend.src.services.filehandler import  ASSIGNMENTS_FILE, load_data, save_data
+from Backend.src.services.filehandler import ASSIGNMENTS_FILE, load_data, save_data
 from Backend.src.utils.logger import logger
 
 

@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 
-from Backend.src.routes.student_routes import router as student_router
+from Backend.src.routes.admin_routes import router as admin_router
+from Backend.src.routes.assignment_routes import router as assignment_router
+from Backend.src.routes.auth_routes import router as auth_router
 from Backend.src.routes.course_routes import router as course_router
 from Backend.src.routes.enrollment_routes import router as enrollment_router
+from Backend.src.routes.student_routes import router as student_router
 from Backend.src.routes.teacher_routes import router as teacher_router
-from Backend.src.routes.assignment_routes import router as assignment_router
-from Backend.src.routes.admin_routes import router as admin_router
-from Backend.src.routes.auth_routes import router as auth_router
 
 app = FastAPI(
     title="LMS API",
