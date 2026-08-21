@@ -1,92 +1,135 @@
-from Backend.src.services.filehandler import STUDENTS_FILE, load_data, save_data
-from Backend.src.utils.logger import logger
+from sqlalchemy.orm import Session
+
+from Backend.src.models.student import Student
+from Backend.src.models.user import User
 
 
-def get_all_students():
-    return load_data(STUDENTS_FILE)
+def get_all_students(db: Session):
+    return db.query(Student).all()
 
 
-def get_student(student_id):
-    students = load_data(STUDENTS_FILE)
-
-    for student in students:
-        if student["student_id"] == student_id:
-            return student
-
-    return None
-
-
-def generate_student_id():
-    students = load_data(STUDENTS_FILE)
-
-    if not students:
-        return 101
-
-    last_id = max(
-        student["student_id"]
-        for student in students
+def get_student(
+    db: Session,
+    student_id: int
+):
+    return (
+        db.query(Student)
+        .filter(Student.student_id == student_id)
+        .first()
     )
 
-    return last_id + 1
 
+def create_student(
+    db: Session,
+    student_data: dict
+):
+    uid = student_data["uid"]
 
-def create_student(student_data):
-
-    students = load_data(STUDENTS_FILE)
-
-    # Generate ID
-    student_id = generate_student_id()
-
-    student_data["student_id"] = student_id
-
-    students.append(student_data)
-
-    save_data(STUDENTS_FILE, students)
-
-    logger.info(
-        f"Student Added: {student_id}"
+    user = (
+        db.query(User)
+        .filter(User.uid == uid)
+        .first()
     )
 
-    return student_data
+    if not user:
+        raise ValueError(
+            "User with this UID does not exist"
+        )
+
+    if user.role != "student":
+        raise ValueError(
+            "This user does not have student role"
+        )
+
+    if not user.is_active:
+        raise ValueError(
+            "Cannot create profile for a deactivated user"
+        )
+
+    existing_student = (
+        db.query(Student)
+        .filter(Student.uid == uid)
+        .first()
+    )
+
+    if existing_student:
+        raise ValueError(
+            "Student profile already exists for this user"
+        )
+
+    student = Student(
+        uid=uid,
+        name=student_data["name"],
+        date_of_birth=student_data.get(
+            "date_of_birth"
+        ),
+        gender=student_data.get("gender"),
+        phone_number=student_data.get(
+            "phone_number"
+        )
+    )
+
+    try:
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return student
 
 
-def update_student(student_id, updated_data):
+def update_student(
+    db: Session,
+    student_id: int,
+    updated_data: dict
+):
+    student = get_student(
+        db,
+        student_id
+    )
 
-    students = load_data(STUDENTS_FILE)
+    if not student:
+        return None
 
-    for student in students:
+    for field, value in updated_data.items():
+        setattr(
+            student,
+            field,
+            value
+        )
 
-        if student["student_id"] == student_id:
+    try:
+        db.commit()
+        db.refresh(student)
 
-            student.update(updated_data)
+    except Exception:
+        db.rollback()
+        raise
 
-            save_data(STUDENTS_FILE, students)
-
-            logger.info(
-                f"Student Updated: {student_id}"
-            )
-
-            return student
-
-    return None
+    return student
 
 
-def delete_student(student_id):
+def delete_student(
+    db: Session,
+    student_id: int
+):
+    student = get_student(
+        db,
+        student_id
+    )
 
-    students = load_data(STUDENTS_FILE)
+    if not student:
+        return None
 
-    for index, student in enumerate(students):
+    try:
+        db.delete(student)
+        db.commit()
 
-        if student["student_id"] == student_id:
+    except Exception:
+        db.rollback()
+        raise
 
-            deleted_student = students.pop(index)
-
-            save_data(STUDENTS_FILE, students)
-
-            logger.info(
-                f"Student Deleted: {student_id}"
-            )
-
-            return deleted_student
-
-    return None
+    return student

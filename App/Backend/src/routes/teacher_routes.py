@@ -1,6 +1,16 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, field_validator
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
+from Backend.database import get_db
+from Backend.src.core.auth_dependency import (
+    get_current_user,
+    require_roles,
+)
+from Backend.src.models.user import User
+from Backend.src.schemas.teachers import (
+    TeacherCreate,
+    TeacherUpdate,
+)
 from Backend.src.services.teacher_service import (
     create_teacher,
     delete_teacher,
@@ -8,129 +18,41 @@ from Backend.src.services.teacher_service import (
     get_teacher,
     update_teacher,
 )
-from Backend.src.utils.input_validator import (
-    is_alpha,
-    is_empty,
-    is_valid_email,
-    validate_length,
-)
-from Backend.src.utils.numeric_validator import is_phone_number, is_positive
 
 router = APIRouter(
     prefix="/teachers",
     tags=["Teachers"]
 )
 
-class Teacher(BaseModel):
-    name: str
-    email: str
-    phone_number: str
-    specialization: str
-    qualification: str
-    experience: int
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, value):
-        if is_empty(value):
-            raise ValueError("Name cannot be empty")
-
-        if not is_alpha(value):
-            raise ValueError(
-                "Name must contain only alphabets and spaces"
-            )
-
-        if not validate_length(value, 2, 100):
-            raise ValueError(
-                "Name must be between 2 and 100 characters"
-            )
-
-        return value
-
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, value):
-        if is_empty(value):
-            raise ValueError("Email cannot be empty")
-
-        if not is_valid_email(value):
-            raise ValueError("Invalid email format")
-
-        return value
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value):
-        if not is_phone_number(value):
-            raise ValueError(
-                "Phone number must contain exactly 10 digits"
-            )
-
-        return value
-
-    @field_validator("specialization")
-    @classmethod
-    def validate_specialization(cls, value):
-        if is_empty(value):
-            raise ValueError("Specialization cannot be empty")
-
-        if not validate_length(value, 2, 100):
-            raise ValueError(
-                "Specialization must be between 2 and 100 characters"
-            )
-
-        return value
-
-    @field_validator("qualification")
-    @classmethod
-    def validate_qualification(cls, value):
-        if is_empty(value):
-            raise ValueError("Qualification cannot be empty")
-
-        if not validate_length(value, 2, 150):
-            raise ValueError(
-                "Qualification must be between 2 and 150 characters"
-            )
-
-        return value
-
-    @field_validator("experience")
-    @classmethod
-    def validate_experience(cls, value):
-        if not is_positive(value):
-            raise ValueError(
-                "Experience must be a positive number"
-            )
-
-        return value
-
-class TeacherUpdate(Teacher):
-    name: str | None = None
-    email: str | None = None
-    phone_number: str | None = None
-    specialization: str | None = None
-    qualification: str | None = None
-    experience: int | None = None
-
-
-# =========================
-# GET ALL TEACHERS
-# =========================
 
 @router.get("/")
-def get_teachers():
+def get_teachers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin", "teacher")
+    )
+):
+    return get_all_teachers(db)
 
-    return get_all_teachers()
-
-
-# =========================
-# GET TEACHER BY ID
-# =========================
 
 @router.get("/{teacher_id}")
-def get_teacher_by_id(teacher_id: int):
+def get_teacher_by_id(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    )
+):
+    if teacher_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Teacher ID must be positive"
+        )
 
-    teacher = get_teacher(teacher_id)
+    teacher = get_teacher(
+        db,
+        teacher_id
+    )
 
     if not teacher:
         raise HTTPException(
@@ -138,32 +60,65 @@ def get_teacher_by_id(teacher_id: int):
             detail="Teacher not found"
         )
 
+    if (
+        current_user.role == "teacher"
+        and teacher.uid != current_user.uid
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only view your own teacher profile"
+        )
+
     return teacher
 
 
-# =========================
-# CREATE TEACHER
-# =========================
-
 @router.post("/")
-def add_teacher(teacher: Teacher):
+def add_teacher(
+    teacher: TeacherCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin")
+    )
+):
+    try:
+        result = create_teacher(
+            db,
+            teacher.model_dump()
+        )
 
-    return create_teacher(teacher.model_dump())
+        return {
+            "message": "Teacher added successfully",
+            "teacher": result
+        }
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
 
-# =========================
-# UPDATE TEACHER
-# =========================
 
 @router.put("/{teacher_id}")
 def edit_teacher(
     teacher_id: int,
-    teacher: TeacherUpdate
+    teacher: TeacherUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin")
+    )
 ):
+    if teacher_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Teacher ID must be positive"
+        )
 
     updated_teacher = update_teacher(
+        db,
         teacher_id,
-        teacher.model_dump(exclude_unset=True)
+        teacher.model_dump(
+            exclude_unset=True
+        )
     )
 
     if not updated_teacher:
@@ -172,17 +127,28 @@ def edit_teacher(
             detail="Teacher not found"
         )
 
-    return updated_teacher
+    return {
+        "message": "Teacher updated successfully",
+        "teacher": updated_teacher
+    }
 
-
-# =========================
-# DELETE TEACHER
-# =========================
 
 @router.delete("/{teacher_id}")
-def remove_teacher(teacher_id: int):
+def remove_teacher(
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin")
+    )
+):
+    if teacher_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Teacher ID must be positive"
+        )
 
     deleted_teacher = delete_teacher(
+        db,
         teacher_id
     )
 

@@ -1,108 +1,140 @@
-from Backend.src.services.filehandler import TEACHERS_FILE, load_data, save_data
-from Backend.src.utils.logger import logger
+from sqlalchemy.orm import Session
+
+from Backend.src.models.teacher import Teacher
+from Backend.src.models.user import User
 
 
-def get_all_teachers():
-
-    return load_data(TEACHERS_FILE)
-
-
-def get_teacher(teacher_id):
-
-    teachers = load_data(TEACHERS_FILE)
-
-    for teacher in teachers:
-
-        if teacher["teacher_id"] == teacher_id:
-            return teacher
-
-    return None
+def get_all_teachers(db: Session):
+    return db.query(Teacher).all()
 
 
-def generate_teacher_id():
-
-    teachers = load_data(TEACHERS_FILE)
-
-    if not teachers:
-        return 301
-
-    last_id = max(
-        teacher["teacher_id"]
-        for teacher in teachers
+def get_teacher(
+    db: Session,
+    teacher_id: int
+):
+    return (
+        db.query(Teacher)
+        .filter(Teacher.teacher_id == teacher_id)
+        .first()
     )
 
-    return last_id + 1
 
+def create_teacher(
+    db: Session,
+    teacher_data: dict
+):
+    uid = teacher_data["uid"]
 
-def create_teacher(teacher_data):
-
-    teachers = load_data(TEACHERS_FILE)
-
-    # Generate teacher ID
-    teacher_id = generate_teacher_id()
-
-    teacher_data["teacher_id"] = teacher_id
-
-    teachers.append(teacher_data)
-
-    save_data(
-        TEACHERS_FILE,
-        teachers
+    user = (
+        db.query(User)
+        .filter(User.uid == uid)
+        .first()
     )
 
-    logger.info(
-        f"Teacher Added: {teacher_id}"
+    if not user:
+        raise ValueError(
+            "User with this UID does not exist"
+        )
+
+    if user.role != "teacher":
+        raise ValueError(
+            "This user does not have teacher role"
+        )
+
+    if not user.is_active:
+        raise ValueError(
+            "Cannot create profile for a deactivated user"
+        )
+
+    existing_teacher = (
+        db.query(Teacher)
+        .filter(Teacher.uid == uid)
+        .first()
     )
 
-    return teacher_data
+    if existing_teacher:
+        raise ValueError(
+            "Teacher profile already exists for this user"
+        )
+
+    teacher = Teacher(
+        uid=uid,
+        name=teacher_data["name"],
+        phone_number=teacher_data.get(
+            "phone_number"
+        ),
+        specialization=teacher_data.get(
+            "specialization"
+        ),
+        qualification=teacher_data.get(
+            "qualification"
+        ),
+        experience=teacher_data.get(
+            "experience"
+        )
+    )
+
+    try:
+        db.add(teacher)
+        db.commit()
+        db.refresh(teacher)
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return teacher
 
 
-def update_teacher(teacher_id, updated_data):
+def update_teacher(
+    db: Session,
+    teacher_id: int,
+    updated_data: dict
+):
+    teacher = get_teacher(
+        db,
+        teacher_id
+    )
 
-    teachers = load_data(TEACHERS_FILE)
+    if not teacher:
+        return None
 
-    for teacher in teachers:
+    for field, value in updated_data.items():
+        setattr(
+            teacher,
+            field,
+            value
+        )
 
-        if teacher["teacher_id"] == teacher_id:
+    try:
+        db.commit()
+        db.refresh(teacher)
 
-            # Do not allow teacher ID to be changed
-            updated_data.pop("teacher_id", None)
+    except Exception:
+        db.rollback()
+        raise
 
-            teacher.update(updated_data)
-
-            save_data(
-                TEACHERS_FILE,
-                teachers
-            )
-
-            logger.info(
-                f"Teacher Updated: {teacher_id}"
-            )
-
-            return teacher
-
-    return None
+    return teacher
 
 
-def delete_teacher(teacher_id):
+def delete_teacher(
+    db: Session,
+    teacher_id: int
+):
+    teacher = get_teacher(
+        db,
+        teacher_id
+    )
 
-    teachers = load_data(TEACHERS_FILE)
+    if not teacher:
+        return None
 
-    for index, teacher in enumerate(teachers):
+    try:
+        db.delete(teacher)
+        db.commit()
 
-        if teacher["teacher_id"] == teacher_id:
+    except Exception:
+        db.rollback()
+        raise
 
-            deleted_teacher = teachers.pop(index)
-
-            save_data(
-                TEACHERS_FILE,
-                teachers
-            )
-
-            logger.info(
-                f"Teacher Deleted: {teacher_id}"
-            )
-
-            return deleted_teacher
-
-    return None
+    return teacher

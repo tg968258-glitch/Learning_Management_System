@@ -1,198 +1,133 @@
-from Backend.src.services.filehandler import (
-    COURSES_FILE,
-    ENROLLMENTS_FILE,
-    STUDENTS_FILE,
-    load_data,
-    save_data,
-)
+from datetime import date
+
+from sqlalchemy.orm import Session
+
+from Backend.src.models.course import Course
+from Backend.src.models.enrollment import Enrollment
+from Backend.src.models.student import Student
 from Backend.src.utils.logger import logger
 
 
-def get_all_enrollments():
-
-    return load_data(ENROLLMENTS_FILE)
-
-
-def get_enrollment(enrollment_id):
-
-    enrollments = load_data(ENROLLMENTS_FILE)
-
-    for enrollment in enrollments:
-
-        if enrollment["enrollment_id"] == enrollment_id:
-            return enrollment
-
-    return None
+def get_all_enrollments(
+    db: Session,
+    status: str | None = None
+) -> list[Enrollment]:
+    query = db.query(Enrollment)
+    if status:
+        query = query.filter(Enrollment.status == status)
+    return query.all()
 
 
-def generate_enrollment_id():
-
-    enrollments = load_data(ENROLLMENTS_FILE)
-
-    if not enrollments:
-        return 1
-
-    last_id = max(
-        enrollment["enrollment_id"]
-        for enrollment in enrollments
-    )
-
-    return last_id + 1
-
-
-def create_enrollment(student_id, course_id):
-
-    students = load_data(STUDENTS_FILE)
-    courses = load_data(COURSES_FILE)
-    enrollments = load_data(ENROLLMENTS_FILE)
-
-    # Check student
-    student_exists = any(
-        student["student_id"] == student_id
-        for student in students
-    )
-
-    if not student_exists:
-
-        return {
-            "success": False,
-            "message": "Student ID does not exist."
-        }
-
-    # Check course
-    course_exists = any(
-        course["course_id"] == course_id
-        for course in courses
-    )
-
-    if not course_exists:
-
-        return {
-            "success": False,
-            "message": "Course ID does not exist."
-        }
-
-    # Check duplicate enrollment
-    for enrollment in enrollments:
-
-        if (
-            enrollment["student_id"] == student_id
-            and enrollment["course_id"] == course_id
-        ):
-
-            return {
-                "success": False,
-                "message": "Student is already enrolled."
-            }
-
-    # Create enrollment
-    enrollment = {
-        "enrollment_id": generate_enrollment_id(),
-        "student_id": student_id,
-        "course_id": course_id,
-        "status": "pending"
-    }
-
-    enrollments.append(enrollment)
-
-    save_data(
-        ENROLLMENTS_FILE,
-        enrollments
-    )
-
-    logger.info(
-        f"Student {student_id} enrolled "
-        f"in Course {course_id}"
-    )
-
-    return {
-        "success": True,
-        "message": "Enrollment created successfully.",
-        "enrollment": enrollment
-    }
-
-
-def update_enrollment(enrollment_id, updated_data):
-
-    enrollments = load_data(ENROLLMENTS_FILE)
-
-    for enrollment in enrollments:
-
-        if enrollment["enrollment_id"] == enrollment_id:
-
-            enrollment.update(updated_data)
-
-            save_data(
-                ENROLLMENTS_FILE,
-                enrollments
-            )
-
-            logger.info(
-                f"Enrollment Updated: {enrollment_id}"
-            )
-
-            return enrollment
-
-    return None
-
-
-def delete_enrollment(enrollment_id):
-
-    enrollments = load_data(ENROLLMENTS_FILE)
-
-    for index, enrollment in enumerate(enrollments):
-
-        if enrollment["enrollment_id"] == enrollment_id:
-
-            deleted_enrollment = enrollments.pop(index)
-
-            save_data(
-                ENROLLMENTS_FILE,
-                enrollments
-            )
-
-            logger.info(
-                f"Enrollment Deleted: {enrollment_id}"
-            )
-
-            return deleted_enrollment
-
-    return None
-
-
-def approve_enrollment(enrollment_id):
-
-    return update_enrollment(
-        enrollment_id,
-        {"status": "approved"}
+def get_enrollment(db: Session, enrollment_id: int) -> Enrollment | None:
+    return (
+        db.query(Enrollment)
+        .filter(Enrollment.enrollment_id == enrollment_id)
+        .first()
     )
 
 
-def reject_enrollment(enrollment_id):
-
-    return update_enrollment(
-        enrollment_id,
-        {"status": "rejected"}
+def get_student_enrollments(
+    db: Session,
+    student_id: int
+) -> list[Enrollment]:
+    return (
+        db.query(Enrollment)
+        .filter(Enrollment.student_id == student_id)
+        .all()
     )
 
 
-def get_student_enrollments(student_id):
+def get_course_enrollments(
+    db: Session,
+    course_id: int
+) -> list[Enrollment]:
+    return (
+        db.query(Enrollment)
+        .filter(Enrollment.course_id == course_id)
+        .all()
+    )
 
-    enrollments = load_data(ENROLLMENTS_FILE)
 
-    return [
-        enrollment
-        for enrollment in enrollments
-        if enrollment["student_id"] == student_id
-    ]
+def create_enrollment(
+    db: Session,
+    student_id: int,
+    course_id: int,
+    status: str = "active"
+) -> Enrollment:
+    # Check student existence
+    student = db.query(Student).filter(Student.student_id == student_id).first()
+    if not student:
+        raise ValueError("Student does not exist")
+
+    # Check course existence
+    course = db.query(Course).filter(Course.course_id == course_id).first()
+    if not course:
+        raise ValueError("Course does not exist")
+
+    # Check if already enrolled
+    existing = (
+        db.query(Enrollment)
+        .filter(
+            Enrollment.student_id == student_id,
+            Enrollment.course_id == course_id
+        )
+        .first()
+    )
+    if existing:
+        raise ValueError("Student is already enrolled in this course")
+
+    enrollment = Enrollment(
+        student_id=student_id,
+        course_id=course_id,
+        enrollment_date=date.today(),
+        status=status
+    )
+
+    try:
+        db.add(enrollment)
+        db.commit()
+        db.refresh(enrollment)
+        logger.info(f"Student {student_id} enrolled in Course {course_id}")
+        return enrollment
+    except Exception:
+        db.rollback()
+        raise
 
 
-def get_course_enrollments(course_id):
+def update_enrollment_status(
+    db: Session,
+    enrollment_id: int,
+    new_status: str
+) -> Enrollment | None:
+    enrollment = get_enrollment(db, enrollment_id)
+    if not enrollment:
+        return None
 
-    enrollments = load_data(ENROLLMENTS_FILE)
+    enrollment.status = new_status
 
-    return [
-        enrollment
-        for enrollment in enrollments
-        if enrollment["course_id"] == course_id
-    ]
+    try:
+        db.commit()
+        db.refresh(enrollment)
+        logger.info(f"Enrollment {enrollment_id} status updated to {new_status}")
+        return enrollment
+    except Exception:
+        db.rollback()
+        raise
+
+
+def delete_enrollment(
+    db: Session,
+    enrollment_id: int
+) -> Enrollment | None:
+    enrollment = get_enrollment(db, enrollment_id)
+    if not enrollment:
+        return None
+
+    try:
+        db.delete(enrollment)
+        db.commit()
+        logger.info(f"Enrollment {enrollment_id} deleted")
+        return enrollment
+    except Exception:
+        db.rollback()
+        raise

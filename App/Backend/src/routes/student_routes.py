@@ -1,6 +1,16 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, field_validator
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
+from Backend.database import get_db
+from Backend.src.core.auth_dependency import (
+    get_current_user,
+    require_roles,
+)
+from Backend.src.models.user import User
+from Backend.src.schemas.students import (
+    StudentCreate,
+    StudentUpdate,
+)
 from Backend.src.services.student_service import (
     create_student,
     delete_student,
@@ -8,13 +18,6 @@ from Backend.src.services.student_service import (
     get_student,
     update_student,
 )
-from Backend.src.utils.input_validator import (
-    is_alpha,
-    is_empty,
-    is_valid_email,
-    validate_length,
-)
-from Backend.src.utils.numeric_validator import in_range, is_phone_number, is_positive
 
 router = APIRouter(
     prefix="/students",
@@ -22,99 +25,34 @@ router = APIRouter(
 )
 
 
-class Student(BaseModel):
-    name: str
-    age: int
-    email: str
-    gender: str
-    percentage: float
-    phone_number: str
-
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, value):
-        if value is None:
-            return value
-
-        if is_empty(value):
-            raise ValueError("Name cannot be empty")
-
-        if not is_alpha(value):
-            raise ValueError("Name must contain only alphabets and spaces")
-
-        if not validate_length(value, 2, 100):
-            raise ValueError("Name must be between 2 and 100 characters")
-
-        return value
-
-    @field_validator("age")
-    @classmethod
-    def validate_age(cls, value):
-        if not is_positive(value):
-            raise ValueError("Age must be positive")
-
-        if not in_range(value, 5, 100):
-            raise ValueError("Age must be between 5 and 100")
-
-        return value
-
-    @field_validator("email")
-    @classmethod
-    def validate_email(cls, value):
-        if is_empty(value):
-            raise ValueError("Email cannot be empty")
-
-        if not is_valid_email(value):
-            raise ValueError("Invalid email format")
-
-        return value
-
-    @field_validator("gender")
-    @classmethod
-    def validate_gender(cls, value):
-        if is_empty(value):
-            raise ValueError("Gender cannot be empty")
-
-        if not is_alpha(value):
-            raise ValueError("Gender must contain only alphabets")
-
-        return value
-
-    @field_validator("percentage")
-    @classmethod
-    def validate_percentage(cls, value):
-        if not in_range(value, 0, 100):
-            raise ValueError("Percentage must be between 0 and 100")
-
-        return value
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value):
-        if not is_phone_number(value):
-            raise ValueError("Phone number must contain exactly 10 digits")
-
-        return value
-
-class StudentUpdate(Student):
-    name: str | None = None
-    age: int | None = None
-    email: str | None = None
-    gender: str | None = None
-    percentage: float | None = None
-    phone_number: str | None = None
-
-
 @router.get("/")
-def get_students():
-    return get_all_students()
+def get_students(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin", "teacher")
+    )
+):
+    return get_all_students(db)
 
 
 @router.get("/{student_id}")
-def get_single_student(student_id: int):
+def get_single_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        get_current_user
+    )
+):
+    if student_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Student ID must be positive"
+        )
 
-    student = get_student(student_id)
+    student = get_student(
+        db,
+        student_id
+    )
 
     if not student:
         raise HTTPException(
@@ -122,28 +60,66 @@ def get_single_student(student_id: int):
             detail="Student not found"
         )
 
+    # Student can only view their own profile
+    if (
+        current_user.role == "student"
+        and student.uid != current_user.uid
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only view your own student profile"
+        )
+
     return student
 
 
 @router.post("/")
-def add_new_student(student: Student):
+def add_new_student(
+    student: StudentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin")
+    )
+):
+    try:
+        result = create_student(
+            db,
+            student.model_dump()
+        )
 
-    result = create_student(student.model_dump())
+        return {
+            "message": "Student added successfully",
+            "student": result
+        }
 
-    return {
-        "message": "Student added successfully",
-        "student": result
-    }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        ) from e
 
 
 @router.put("/{student_id}")
 def update_existing_student(
     student_id: int,
-    student_data: StudentUpdate
+    student_data: StudentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin")
+    )
 ):
+    if student_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Student ID must be positive"
+        )
+
     result = update_student(
+        db,
         student_id,
-        student_data.model_dump(exclude_unset=True)
+        student_data.model_dump(
+            exclude_unset=True
+        )
     )
 
     if not result:
@@ -159,9 +135,23 @@ def update_existing_student(
 
 
 @router.delete("/{student_id}")
-def delete_existing_student(student_id: int):
+def delete_existing_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("admin")
+    )
+):
+    if student_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Student ID must be positive"
+        )
 
-    result = delete_student(student_id)
+    result = delete_student(
+        db,
+        student_id
+    )
 
     if not result:
         raise HTTPException(

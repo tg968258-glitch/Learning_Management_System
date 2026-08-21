@@ -1,21 +1,32 @@
-from datetime import date
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, field_validator
-
+from Backend.database import get_db
+from Backend.src.core.auth_dependency import get_current_user, require_roles
+from Backend.src.models.assignment import Submission
+from Backend.src.models.student import Student
+from Backend.src.models.teacher import Teacher
+from Backend.src.models.user import User
+from Backend.src.schemas.assignments import (
+    AssignmentCreate,
+    AssignmentDetailResponse,
+    AssignmentResponse,
+    AssignmentUpdate,
+    SubmissionCreate,
+    SubmissionGrade,
+    SubmissionResponse,
+)
 from Backend.src.services.assignment_service import (
     create_assignment,
     delete_assignment,
     get_all_assignments,
     get_assignment_by_id,
     get_assignment_submissions,
-    get_assignments_by_course,
+    get_submission,
+    grade_submission,
     submit_assignment,
     update_assignment,
-    update_submission,
 )
-from Backend.src.utils.input_validator import is_empty, validate_length
-from Backend.src.utils.numeric_validator import is_positive
 
 router = APIRouter(
     prefix="/assignments",
@@ -23,222 +34,279 @@ router = APIRouter(
 )
 
 
-class Submission(BaseModel):
-    student_id: int
-    submission_date: date
-    submission_file: str
-    status: str = "submitted"
-    marks: float | None = None
-    feedback: str = ""
-
-    @field_validator("student_id")
-    @classmethod
-    def validate_student_id(cls, value):
-        if not is_positive(value):
-            raise ValueError("Student ID must be a positive number")
-        return value
-
-    @field_validator("submission_file")
-    @classmethod
-    def validate_submission_file(cls, value):
-        if is_empty(value):
-            raise ValueError("Submission file cannot be empty")
-        return value
-
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, value):
-        if is_empty(value):
-            raise ValueError("Status cannot be empty")
-        return value
-
-    @field_validator("marks")
-    @classmethod
-    def validate_marks(cls, value):
-        if value is not None and not is_positive(value):
-            raise ValueError("Marks must be positive")
-        return value
-
-class Assignment(BaseModel):
-    assignment_id: int
-    course_id: int
-    title: str
-    description: str
-    due_date: date
-    max_marks: float
-    submissions: list[Submission]
-
-    @field_validator("assignment_id", "course_id")
-    @classmethod
-    def validate_ids(cls, value):
-        if not is_positive(value):
-            raise ValueError("ID must be a positive number")
-        return value
-
-    @field_validator("title")
-    @classmethod
-    def validate_title(cls, value):
-        if is_empty(value):
-            raise ValueError("Title cannot be empty")
-
-        if not validate_length(value, 1, 100):
-            raise ValueError("Title must be between 1 and 100 characters")
-
-        return value
-
-    @field_validator("description")
-    @classmethod
-    def validate_description(cls, value):
-        if is_empty(value):
-            raise ValueError("Description cannot be empty")
-
-        if not validate_length(value, 1, 500):
-            raise ValueError(
-                "Description must be between 1 and 500 characters"
-            )
-
-        return value
-
-    @field_validator("due_date")
-    @classmethod
-    def validate_due_date(cls, value):
-        if is_empty(value):
-            raise ValueError("Due date cannot be empty")
-        return value
-
-    @field_validator("max_marks")
-    @classmethod
-    def validate_max_marks(cls, value):
-        if not is_positive(value):
-            raise ValueError("Maximum marks must be positive")
-        return value
-
-
-@router.get("/")
-def get_assignments():
-    return get_all_assignments()
-
-
-@router.get("/{assignment_id}")
-def get_assignment(assignment_id: int):
-    assignment = get_assignment_by_id(assignment_id)
-
-    if not assignment:
-        raise HTTPException(
-            status_code=404,
-            detail="Assignment not found"
-        )
-
-    return assignment
-
-
-@router.get("/course/{course_id}")
-def get_course_assignments(course_id: int):
-    return get_assignments_by_course(course_id)
-
-
-@router.post("/")
-def add_assignment(assignment: Assignment):
-    try:
-        return create_assignment(assignment.model_dump())
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
-
-
-@router.put("/{assignment_id}")
-def edit_assignment(
-    assignment_id: int,
-    assignment: Assignment
-):
-    if not get_assignment_by_id(assignment_id):
-        raise HTTPException(
-            status_code=404,
-            detail="Assignment not found"
-        )
-
-    return update_assignment(
-        assignment_id,
-        assignment.model_dump()
-    )
-
-
-@router.delete("/{assignment_id}")
-def remove_assignment(assignment_id: int):
-    if not delete_assignment(assignment_id):
-        raise HTTPException(
-            status_code=404,
-            detail="Assignment not found"
-        )
-
+def _build_submission_response(db: Session, sub: Submission) -> dict:
+    student = db.query(Student).filter(Student.student_id == sub.student_id).first()
     return {
-        "message": "Assignment deleted successfully"
+        "submission_id": sub.submission_id,
+        "assignment_id": sub.assignment_id,
+        "student_id": sub.student_id,
+        "submission_date": sub.submission_date,
+        "submission_text": sub.submission_text,
+        "submission_file": sub.submission_file,
+        "status": sub.status,
+        "marks": float(sub.marks) if sub.marks is not None else None,
+        "graded_by": sub.graded_by,
+        "feedback": sub.feedback,
+        "student_name": student.name if student else None
     }
 
-@router.post("/{assignment_id}/submit")
-def submit(
-    assignment_id: int,
-    submission: Submission
+
+# =========================================================
+# LIST ASSIGNMENTS
+# =========================================================
+
+@router.get("/", response_model=list[AssignmentResponse])
+def list_assignments(
+    course_id: int | None = Query(None, description="Filter by course ID"),
+    module_id: int | None = Query(None, description="Filter by module ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    try:
-        result = submit_assignment(
-            assignment_id,
-            submission.model_dump()
+    assignments = get_all_assignments(db, course_id=course_id, module_id=module_id)
+    return [
+        {
+            "assignment_id": a.assignment_id,
+            "course_id": a.course_id,
+            "module_id": a.module_id,
+            "title": a.title,
+            "description": a.description,
+            "due_date": a.due_date,
+            "max_marks": float(a.max_marks),
+            "passing_marks": float(a.passing_marks),
+            "created_by": a.created_by,
+            "created_at": a.created_at,
+            "updated_at": a.updated_at
+        }
+        for a in assignments
+    ]
+
+
+# =========================================================
+# GET SINGLE ASSIGNMENT
+# =========================================================
+
+@router.get("/{assignment_id}", response_model=AssignmentDetailResponse)
+def get_single_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if assignment_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Assignment ID must be positive"
         )
 
-        if result is None:
+    assignment = get_assignment_by_id(db, assignment_id)
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Assignment not found"
+        )
+
+    # Submissions visible: all for teachers/admins, only own for student
+    if current_user.role == "student":
+        student = db.query(Student).filter(Student.uid == current_user.uid).first()
+        if student:
+            sub = get_submission(db, assignment_id, student.student_id)
+            submissions = [_build_submission_response(db, sub)] if sub else []
+        else:
+            submissions = []
+    else:
+        subs = get_assignment_submissions(db, assignment_id)
+        submissions = [_build_submission_response(db, s) for s in subs]
+
+    return {
+        "assignment_id": assignment.assignment_id,
+        "course_id": assignment.course_id,
+        "module_id": assignment.module_id,
+        "title": assignment.title,
+        "description": assignment.description,
+        "due_date": assignment.due_date,
+        "max_marks": float(assignment.max_marks),
+        "passing_marks": float(assignment.passing_marks),
+        "created_by": assignment.created_by,
+        "created_at": assignment.created_at,
+        "updated_at": assignment.updated_at,
+        "submissions": submissions
+    }
+
+
+# =========================================================
+# CREATE ASSIGNMENT (Admin or Teacher)
+# =========================================================
+
+@router.post("/", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
+def add_new_assignment(
+    assignment_in: AssignmentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher"))
+):
+    try:
+        created = create_assignment(
+            db=db,
+            assignment_data=assignment_in.model_dump(),
+            created_by_uid=current_user.uid
+        )
+        return {
+            "assignment_id": created.assignment_id,
+            "course_id": created.course_id,
+            "module_id": created.module_id,
+            "title": created.title,
+            "description": created.description,
+            "due_date": created.due_date,
+            "max_marks": float(created.max_marks),
+            "passing_marks": float(created.passing_marks),
+            "created_by": created.created_by,
+            "created_at": created.created_at,
+            "updated_at": created.updated_at
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+
+
+# =========================================================
+# UPDATE ASSIGNMENT (Admin or Teacher)
+# =========================================================
+
+@router.put("/{assignment_id}", response_model=AssignmentResponse)
+def update_existing_assignment(
+    assignment_id: int,
+    assignment_in: AssignmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher"))
+):
+    if assignment_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Assignment ID must be positive"
+        )
+
+    try:
+        updated = update_assignment(
+            db=db,
+            assignment_id=assignment_id,
+            updated_data=assignment_in.model_dump(exclude_unset=True)
+        )
+        if not updated:
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Assignment not found"
             )
 
         return {
-            "message": "Assignment submitted successfully",
-            "submission": result
+            "assignment_id": updated.assignment_id,
+            "course_id": updated.course_id,
+            "module_id": updated.module_id,
+            "title": updated.title,
+            "description": updated.description,
+            "due_date": updated.due_date,
+            "max_marks": float(updated.max_marks),
+            "passing_marks": float(updated.passing_marks),
+            "created_by": updated.created_by,
+            "created_at": updated.created_at,
+            "updated_at": updated.updated_at
         }
-
     except ValueError as e:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        ) from e
+
+
+# =========================================================
+# DELETE ASSIGNMENT (Admin or Teacher)
+# =========================================================
+
+@router.delete("/{assignment_id}")
+def remove_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher"))
+):
+    if assignment_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Assignment ID must be positive"
         )
 
-
-@router.get("/{assignment_id}/submissions")
-def get_submissions(assignment_id: int):
-    submissions = get_assignment_submissions(assignment_id)
-
-    if submissions is None:
+    deleted = delete_assignment(db, assignment_id)
+    if not deleted:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Assignment not found"
         )
 
-    return submissions
+    return {"message": "Assignment deleted successfully"}
 
 
-@router.put("/{assignment_id}/submissions/{student_id}")
-def edit_submission(
+# =========================================================
+# SUBMIT ASSIGNMENT (Student only)
+# =========================================================
+
+@router.post("/{assignment_id}/submit", response_model=SubmissionResponse)
+def submit_work(
     assignment_id: int,
-    student_id: int,
-    submission: Submission
+    submission_in: SubmissionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("student"))
 ):
-    result = update_submission(
-        assignment_id,
-        student_id,
-        submission.model_dump()
-    )
-
-    if result is None:
+    student = db.query(Student).filter(Student.uid == current_user.uid).first()
+    if not student:
         raise HTTPException(
-            status_code=404,
-            detail="Submission not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student profile not found"
         )
 
-    return {
-        "message": "Submission updated successfully",
-        "submission": result
-    }
+    try:
+        submission = submit_assignment(
+            db=db,
+            assignment_id=assignment_id,
+            student_id=student.student_id,
+            submission_data=submission_in.model_dump()
+        )
+        return _build_submission_response(db, submission)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+
+
+# =========================================================
+# GRADE SUBMISSION (Teacher or Admin)
+# =========================================================
+
+@router.put("/{assignment_id}/submissions/{student_id}/grade", response_model=SubmissionResponse)
+def grade_student_submission(
+    assignment_id: int,
+    student_id: int,
+    grade_in: SubmissionGrade,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher"))
+):
+    # Find teacher_id if user is a teacher
+    teacher_id = None
+    if current_user.role == "teacher":
+        teacher = db.query(Teacher).filter(Teacher.uid == current_user.uid).first()
+        if teacher:
+            teacher_id = teacher.teacher_id
+
+    try:
+        submission = grade_submission(
+            db=db,
+            assignment_id=assignment_id,
+            student_id=student_id,
+            marks=grade_in.marks,
+            feedback=grade_in.feedback,
+            teacher_id=teacher_id
+        )
+        return _build_submission_response(db, submission)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e

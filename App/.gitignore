@@ -1,0 +1,19 @@
+# Environment Variables
+.env
+*.env
+
+# Python Bytecode and Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Logs
+*.log
+lms.log
+
+# Virtual Environments
+venv/
+.venv/
+env/
