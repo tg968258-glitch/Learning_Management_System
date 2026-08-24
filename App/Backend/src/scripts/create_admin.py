@@ -1,7 +1,13 @@
+import os
+
+from dotenv import load_dotenv
+
 from Backend.database import SessionLocal
 from Backend.src.core.security import hash_password
 from Backend.src.models.user import User
 from Backend.src.services.auth_service import generate_uid
+
+load_dotenv()
 
 
 def create_admin():
@@ -23,9 +29,9 @@ def create_admin():
         admin = User(
             uid=uid,
             username="lmsadmin",
-            email="admin@lms.com",
+            email=os.getenv("ADMIN_EMAIL"),
             recovery_email=None,
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password(os.getenv("ADMIN_PASSWORD")),
             role="admin",
             email_verified=True,
             recovery_email_verified=False,
@@ -37,7 +43,7 @@ def create_admin():
         db.commit()
 
         print("Admin created successfully")
-        print("Email: admin@lms.com")
+        print("Email:", os.getenv("ADMIN_EMAIL"))
 
     except Exception as e:
         db.rollback()
