@@ -9,7 +9,7 @@ class CourseBase(BaseModel):
     course_name: str
     description: str | None = None
     duration: str | None = None
-    status: str = "active"
+    status: str = "draft"
     category: str | None = None
 
     @field_validator("course_name")
@@ -56,7 +56,7 @@ class CourseBase(BaseModel):
 
 
 class CourseCreate(CourseBase):
-    teacher_ids: list[int] | None = None
+    pass
 
 
 class CourseUpdate(BaseModel):

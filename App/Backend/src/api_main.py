@@ -1,4 +1,6 @@
+import os
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from Backend.database import Base, engine
 
@@ -28,6 +30,11 @@ app = FastAPI(
     description="Full-Featured Learning Management System REST API built with FastAPI and PostgreSQL",
     version="1.0.0"
 )
+
+# Ensure uploads directory exists and mount for static file access
+UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 @app.get("/")

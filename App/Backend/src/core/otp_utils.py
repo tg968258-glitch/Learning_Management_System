@@ -26,5 +26,5 @@ def verify_otp(
 
 def get_otp_expiry():
     return datetime.now(timezone.utc) + timedelta(
-        minutes=5
+        minutes=2
     )

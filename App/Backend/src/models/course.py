@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from Backend.database import Base
@@ -32,7 +32,7 @@ class Course(Base):
 
     status: Mapped[str] = mapped_column(
         String(20),
-        default="active"
+        default="draft"
     )
 
     category: Mapped[str | None] = mapped_column(
@@ -76,4 +76,10 @@ class CourseTeacher(Base):
         Integer,
         ForeignKey("teachers.teacher_id"),
         primary_key=True
+    )
+
+    is_course_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
     )

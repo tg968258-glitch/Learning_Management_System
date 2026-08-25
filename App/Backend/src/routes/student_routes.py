@@ -7,15 +7,12 @@ from Backend.src.core.auth_dependency import (
     require_roles,
 )
 from Backend.src.models.user import User
-from Backend.src.schemas.students import (
-    StudentCreate,
-    StudentUpdate,
-)
+from Backend.src.schemas.students import StudentUpdate
 from Backend.src.services.student_service import (
-    create_student,
     delete_student,
     get_all_students,
     get_student,
+    get_student_by_uid,
     update_student,
 )
 
@@ -33,6 +30,30 @@ def get_students(
     )
 ):
     return get_all_students(db)
+
+
+@router.get("/me")
+def get_my_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles("student")
+    )
+):
+    try:
+        student = get_student_by_uid(
+            db,
+            current_user.uid
+        )
+
+        return {
+            "student": student
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        ) from e
 
 
 @router.get("/{student_id}")
@@ -73,28 +94,36 @@ def get_single_student(
     return student
 
 
-@router.post("/")
-def add_new_student(
-    student: StudentCreate,
+@router.put("/me")
+def update_my_profile(
+    student: StudentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(
-        require_roles("admin")
+        require_roles("student")
     )
 ):
     try:
-        result = create_student(
+        current_student = get_student_by_uid(
             db,
-            student.model_dump()
+            current_user.uid
+        )
+
+        updated_student = update_student(
+            db,
+            current_student.student_id,
+            student.model_dump(
+                exclude_unset=True
+            )
         )
 
         return {
-            "message": "Student added successfully",
-            "student": result
+            "message": "Profile updated successfully",
+            "student": updated_student
         }
 
     except ValueError as e:
         raise HTTPException(
-            status_code=400,
+            status_code=404,
             detail=str(e)
         ) from e
 

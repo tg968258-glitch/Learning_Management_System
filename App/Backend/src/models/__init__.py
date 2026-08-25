@@ -18,4 +18,5 @@ from Backend.src.models.quiz import (
 )
 from Backend.src.models.student import Student
 from Backend.src.models.teacher import Teacher
+from Backend.src.models.teacher_invitation import TeacherInvitation
 from Backend.src.models.user import OTPVerification, User, UserSession

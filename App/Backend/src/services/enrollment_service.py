@@ -1,10 +1,9 @@
-from datetime import date
-
 from sqlalchemy.orm import Session
 
-from Backend.src.models.course import Course
 from Backend.src.models.enrollment import Enrollment
-from Backend.src.models.student import Student
+from Backend.src.repositories.course_repository import CourseRepository
+from Backend.src.repositories.enrollment_repository import EnrollmentRepository
+from Backend.src.repositories.student_repository import StudentRepository
 from Backend.src.utils.logger import logger
 
 
@@ -19,33 +18,21 @@ def get_all_enrollments(
 
 
 def get_enrollment(db: Session, enrollment_id: int) -> Enrollment | None:
-    return (
-        db.query(Enrollment)
-        .filter(Enrollment.enrollment_id == enrollment_id)
-        .first()
-    )
+    return EnrollmentRepository.get_by_id(db, enrollment_id)
 
 
 def get_student_enrollments(
     db: Session,
     student_id: int
 ) -> list[Enrollment]:
-    return (
-        db.query(Enrollment)
-        .filter(Enrollment.student_id == student_id)
-        .all()
-    )
+    return EnrollmentRepository.get_by_student(db, student_id)
 
 
 def get_course_enrollments(
     db: Session,
     course_id: int
 ) -> list[Enrollment]:
-    return (
-        db.query(Enrollment)
-        .filter(Enrollment.course_id == course_id)
-        .all()
-    )
+    return EnrollmentRepository.get_by_course(db, course_id)
 
 
 def create_enrollment(
@@ -54,44 +41,21 @@ def create_enrollment(
     course_id: int,
     status: str = "active"
 ) -> Enrollment:
-    # Check student existence
-    student = db.query(Student).filter(Student.student_id == student_id).first()
+    student = StudentRepository.get_by_id(db, student_id)
     if not student:
         raise ValueError("Student does not exist")
 
-    # Check course existence
-    course = db.query(Course).filter(Course.course_id == course_id).first()
+    course = CourseRepository.get_by_id(db, course_id)
     if not course:
         raise ValueError("Course does not exist")
 
-    # Check if already enrolled
-    existing = (
-        db.query(Enrollment)
-        .filter(
-            Enrollment.student_id == student_id,
-            Enrollment.course_id == course_id
-        )
-        .first()
-    )
+    existing = EnrollmentRepository.get_by_student_and_course(db, student_id, course_id)
     if existing:
         raise ValueError("Student is already enrolled in this course")
 
-    enrollment = Enrollment(
-        student_id=student_id,
-        course_id=course_id,
-        enrollment_date=date.today(),
-        status=status
-    )
-
-    try:
-        db.add(enrollment)
-        db.commit()
-        db.refresh(enrollment)
-        logger.info(f"Student {student_id} enrolled in Course {course_id}")
-        return enrollment
-    except Exception:
-        db.rollback()
-        raise
+    enrollment = EnrollmentRepository.create(db, student_id, course_id, status)
+    logger.info(f"Student {student_id} enrolled in Course {course_id}")
+    return enrollment
 
 
 def update_enrollment_status(
@@ -99,35 +63,24 @@ def update_enrollment_status(
     enrollment_id: int,
     new_status: str
 ) -> Enrollment | None:
-    enrollment = get_enrollment(db, enrollment_id)
+    enrollment = EnrollmentRepository.get_by_id(db, enrollment_id)
     if not enrollment:
         return None
 
-    enrollment.status = new_status
-
-    try:
-        db.commit()
-        db.refresh(enrollment)
-        logger.info(f"Enrollment {enrollment_id} status updated to {new_status}")
-        return enrollment
-    except Exception:
-        db.rollback()
-        raise
+    updated = EnrollmentRepository.update_status(db, enrollment, new_status)
+    logger.info(f"Enrollment {enrollment_id} status updated to {new_status}")
+    return updated
 
 
 def delete_enrollment(
     db: Session,
     enrollment_id: int
 ) -> Enrollment | None:
-    enrollment = get_enrollment(db, enrollment_id)
+    enrollment = EnrollmentRepository.get_by_id(db, enrollment_id)
     if not enrollment:
         return None
 
-    try:
-        db.delete(enrollment)
-        db.commit()
-        logger.info(f"Enrollment {enrollment_id} deleted")
-        return enrollment
-    except Exception:
-        db.rollback()
-        raise
+    db.delete(enrollment)
+    db.commit()
+    logger.info(f"Enrollment {enrollment_id} deleted")
+    return enrollment

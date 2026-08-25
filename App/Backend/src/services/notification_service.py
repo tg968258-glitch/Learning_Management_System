@@ -1,9 +1,8 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
 from Backend.src.models.notification import Notification
-from Backend.src.models.user import User
+from Backend.src.repositories.notification_repository import NotificationRepository
+from Backend.src.repositories.user_repository import UserRepository
 from Backend.src.utils.logger import logger
 
 
@@ -12,42 +11,20 @@ def get_user_notifications(
     uid: str,
     unread_only: bool = False
 ) -> list[Notification]:
-    query = db.query(Notification).filter(Notification.uid == uid)
-    if unread_only:
-        query = query.filter(Notification.is_read.is_(False))
-    return query.order_by(Notification.created_at.desc()).all()
+    return NotificationRepository.get_user_notifications(db, uid, unread_only)
 
 
 def create_notification(
     db: Session,
     notification_data: dict
 ) -> Notification:
-    user = db.query(User).filter(User.uid == notification_data["uid"]).first()
+    user = UserRepository.get_by_uid(db, notification_data["uid"])
     if not user:
         raise ValueError("Recipient user does not exist")
 
-    notification = Notification(
-        uid=notification_data["uid"],
-        session_id=notification_data.get("session_id"),
-        assignment_id=notification_data.get("assignment_id"),
-        notification_type=notification_data["notification_type"],
-        title=notification_data.get("title"),
-        message=notification_data["message"],
-        status="sent",
-        is_read=False,
-        created_at=datetime.utcnow(),
-        sent_at=datetime.utcnow()
-    )
-
-    try:
-        db.add(notification)
-        db.commit()
-        db.refresh(notification)
-        logger.info(f"Notification {notification.notification_id} sent to {notification.uid}")
-        return notification
-    except Exception:
-        db.rollback()
-        raise
+    notification = NotificationRepository.create(db, notification_data)
+    logger.info(f"Notification {notification.notification_id} sent to {notification.uid}")
+    return notification
 
 
 def mark_notification_as_read(
@@ -55,33 +32,14 @@ def mark_notification_as_read(
     notification_id: int,
     uid: str
 ) -> Notification | None:
-    notification = db.query(Notification).filter(Notification.notification_id == notification_id).first()
+    notification = NotificationRepository.get_by_id(db, notification_id)
     if not notification:
         return None
     if notification.uid != uid:
         raise ValueError("You can only update your own notifications")
 
-    notification.is_read = True
-    notification.status = "read"
-
-    try:
-        db.commit()
-        db.refresh(notification)
-        return notification
-    except Exception:
-        db.rollback()
-        raise
+    return NotificationRepository.mark_as_read(db, notification)
 
 
 def mark_all_notifications_as_read(db: Session, uid: str) -> int:
-    try:
-        updated_count = (
-            db.query(Notification)
-            .filter(Notification.uid == uid, Notification.is_read.is_(False))
-            .update({"is_read": True, "status": "read"})
-        )
-        db.commit()
-        return updated_count
-    except Exception:
-        db.rollback()
-        raise
+    return NotificationRepository.mark_all_as_read(db, uid)

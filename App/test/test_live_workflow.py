@@ -57,6 +57,7 @@ def test_complete_live_lms_workflow():
     student_password = "Password123"
 
     reg_payload = {
+        "name": f"Student {suffix}",
         "username": student_username,
         "email": student_email,
         "password": student_password,
@@ -75,19 +76,18 @@ def test_complete_live_lms_workflow():
     assert db_student_user.role == "student"
     print(f" [PASS] 3. DB VERIFY: User table has UID '{student_uid}' with role 'student'")
 
-    # 3. Create Student Profile via /students/ (Admin)
-    student_profile_payload = {
-        "uid": student_uid,
-        "name": "Jane Doe",
-        "gender": "female",
-        "phone_number": "9876543210"
-    }
-    student_prof_res = client.post("/students/", json=student_profile_payload, headers=admin_headers)
-    assert student_prof_res.status_code in (200, 201), f"Student profile creation failed: {student_prof_res.text}"
+    # 3. Verify & Update Student Profile via /students/{student_id} (Admin)
     created_student = db.query(Student).filter(Student.uid == student_uid).first()
     assert created_student is not None
     student_id = created_student.student_id
-    print(f" [PASS] 4. API & DB: Student Profile created -> student_id: {student_id}")
+
+    student_profile_payload = {
+        "gender": "female",
+        "phone_number": "9876543210"
+    }
+    student_prof_res = client.put(f"/students/{student_id}", json=student_profile_payload, headers=admin_headers)
+    assert student_prof_res.status_code == 200, f"Student profile update failed: {student_prof_res.text}"
+    print(f" [PASS] 4. API & DB: Student Profile updated -> student_id: {student_id}")
 
     # 4. Login as Student via /auth/login
     login_res = client.post(

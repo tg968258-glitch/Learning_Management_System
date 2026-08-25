@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
 from Backend.src.models.user import User
+from Backend.src.utils.file_upload import save_uploaded_file
 from Backend.src.schemas.lessons import (
     LessonContentCreate,
     LessonContentResponse,
@@ -221,6 +222,30 @@ def add_resource_to_lesson(
 ):
     try:
         return add_resource(db, resource_in.model_dump())
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+
+
+@router.post("/{lesson_id}/resources/upload-pdf", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
+async def upload_lesson_pdf_resource(
+    lesson_id: int,
+    resource_name: str = Form(..., description="Display title for the resource"),
+    resource_type: str = Form("pdf", description="Resource type (e.g. pdf, notes, slides)"),
+    file: UploadFile = File(..., description="PDF document or presentation"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher"))
+):
+    file_url = await save_uploaded_file(file, subfolder="resources")
+    try:
+        return add_resource(db, {
+            "lesson_id": lesson_id,
+            "resource_name": resource_name,
+            "resource_type": resource_type,
+            "resource_url": file_url
+        })
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

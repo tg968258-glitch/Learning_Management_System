@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from Backend.database import get_db
@@ -7,6 +7,7 @@ from Backend.src.models.assignment import Submission
 from Backend.src.models.student import Student
 from Backend.src.models.teacher import Teacher
 from Backend.src.models.user import User
+from Backend.src.utils.file_upload import save_uploaded_file
 from Backend.src.schemas.assignments import (
     AssignmentCreate,
     AssignmentDetailResponse,
@@ -267,6 +268,53 @@ def submit_work(
             assignment_id=assignment_id,
             student_id=student.student_id,
             submission_data=submission_in.model_dump()
+        )
+        return _build_submission_response(db, submission)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) from e
+
+
+# =========================================================
+# SUBMIT ASSIGNMENT WITH FILE UPLOAD (PDF / TEXT)
+# =========================================================
+
+@router.post("/{assignment_id}/submit-file", response_model=SubmissionResponse)
+async def submit_assignment_with_file(
+    assignment_id: int,
+    submission_text: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("student"))
+):
+    student = db.query(Student).filter(Student.uid == current_user.uid).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student profile not found"
+        )
+
+    file_url = None
+    if file and file.filename:
+        file_url = await save_uploaded_file(file, subfolder="assignments")
+
+    if not submission_text and not file_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please provide submission text or upload a PDF/document file"
+        )
+
+    try:
+        submission = submit_assignment(
+            db=db,
+            assignment_id=assignment_id,
+            student_id=student.student_id,
+            submission_data={
+                "submission_text": submission_text,
+                "submission_file": file_url
+            }
         )
         return _build_submission_response(db, submission)
     except ValueError as e:

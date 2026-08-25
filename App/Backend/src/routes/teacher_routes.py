@@ -7,12 +7,9 @@ from Backend.src.core.auth_dependency import (
     require_roles,
 )
 from Backend.src.models.user import User
-from Backend.src.schemas.teachers import (
-    TeacherCreate,
-    TeacherUpdate,
-)
+from Backend.src.schemas.teachers import TeacherUpdate
 from Backend.src.services.teacher_service import (
-    create_teacher,
+
     delete_teacher,
     get_all_teachers,
     get_teacher,
@@ -71,31 +68,6 @@ def get_teacher_by_id(
 
     return teacher
 
-
-@router.post("/")
-def add_teacher(
-    teacher: TeacherCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(
-        require_roles("admin")
-    )
-):
-    try:
-        result = create_teacher(
-            db,
-            teacher.model_dump()
-        )
-
-        return {
-            "message": "Teacher added successfully",
-            "teacher": result
-        }
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        ) from e
 
 
 @router.put("/{teacher_id}")

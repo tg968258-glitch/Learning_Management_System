@@ -1,12 +1,10 @@
-from datetime import date
-
 from sqlalchemy.orm import Session
 
-from Backend.src.models.course import Course
-from Backend.src.models.lesson import Lesson
-from Backend.src.models.module import Module
 from Backend.src.models.progress import LessonProgress
-from Backend.src.models.student import Student
+from Backend.src.repositories.course_repository import CourseRepository
+from Backend.src.repositories.lesson_repository import LessonRepository
+from Backend.src.repositories.progress_repository import ProgressRepository
+from Backend.src.repositories.student_repository import StudentRepository
 from Backend.src.utils.logger import logger
 
 
@@ -15,14 +13,7 @@ def get_lesson_progress(
     student_id: int,
     lesson_id: int
 ) -> LessonProgress | None:
-    return (
-        db.query(LessonProgress)
-        .filter(
-            LessonProgress.student_id == student_id,
-            LessonProgress.lesson_id == lesson_id
-        )
-        .first()
-    )
+    return ProgressRepository.get_progress(db, student_id, lesson_id)
 
 
 def update_or_create_lesson_progress(
@@ -32,40 +23,23 @@ def update_or_create_lesson_progress(
     progress_percentage: float,
     completed: bool
 ) -> LessonProgress:
-    student = db.query(Student).filter(Student.student_id == student_id).first()
+    student = StudentRepository.get_by_id(db, student_id)
     if not student:
         raise ValueError("Student does not exist")
 
-    lesson = db.query(Lesson).filter(Lesson.lesson_id == lesson_id).first()
+    lesson = LessonRepository.get_by_id(db, lesson_id)
     if not lesson:
         raise ValueError("Lesson does not exist")
 
-    progress = get_lesson_progress(db, student_id, lesson_id)
-    if not progress:
-        progress = LessonProgress(
-            student_id=student_id,
-            lesson_id=lesson_id,
-            progress_percentage=progress_percentage,
-            completed=completed,
-            completed_date=date.today() if completed else None
-        )
-        db.add(progress)
-    else:
-        progress.progress_percentage = progress_percentage
-        progress.completed = completed
-        if completed and not progress.completed_date:
-            progress.completed_date = date.today()
-        elif not completed:
-            progress.completed_date = None
-
-    try:
-        db.commit()
-        db.refresh(progress)
-        logger.info(f"Progress updated: Student {student_id}, Lesson {lesson_id} -> {progress_percentage}%")
-        return progress
-    except Exception:
-        db.rollback()
-        raise
+    progress = ProgressRepository.upsert_lesson_progress(
+        db=db,
+        student_id=student_id,
+        lesson_id=lesson_id,
+        progress_percentage=progress_percentage,
+        completed=completed
+    )
+    logger.info(f"Progress updated: Student {student_id}, Lesson {lesson_id} -> {progress_percentage}%")
+    return progress
 
 
 def get_course_progress_summary(
@@ -73,17 +47,11 @@ def get_course_progress_summary(
     student_id: int,
     course_id: int
 ) -> dict:
-    course = db.query(Course).filter(Course.course_id == course_id).first()
+    course = CourseRepository.get_by_id(db, course_id)
     if not course:
         raise ValueError("Course does not exist")
 
-    # Get all lesson IDs in this course via modules
-    lessons = (
-        db.query(Lesson)
-        .join(Module, Module.module_id == Lesson.module_id)
-        .filter(Module.course_id == course_id)
-        .all()
-    )
+    lessons = ProgressRepository.get_course_lessons(db, course_id)
     total_lessons = len(lessons)
     if total_lessons == 0:
         return {
@@ -95,14 +63,7 @@ def get_course_progress_summary(
         }
 
     lesson_ids = [l.lesson_id for l in lessons]
-    progress_records = (
-        db.query(LessonProgress)
-        .filter(
-            LessonProgress.student_id == student_id,
-            LessonProgress.lesson_id.in_(lesson_ids)
-        )
-        .all()
-    )
+    progress_records = ProgressRepository.get_student_progress_by_lesson_ids(db, student_id, lesson_ids)
 
     completed_count = sum(1 for p in progress_records if p.completed)
     total_percentage = sum(float(p.progress_percentage) for p in progress_records)
