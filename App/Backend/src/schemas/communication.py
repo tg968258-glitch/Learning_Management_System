@@ -16,6 +16,7 @@ class ClassSessionBase(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     topic: str | None = None
+    meeting_link: str | None = None
 
     @field_validator("course_id")
     @classmethod
@@ -47,6 +48,7 @@ class ClassSessionUpdate(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     topic: str | None = None
+    meeting_link: str | None = None
 
 
 class ClassSessionResponse(BaseModel):
@@ -57,6 +59,7 @@ class ClassSessionResponse(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     topic: str | None = None
+    meeting_link: str | None = None
     teacher_name: str | None = None
     course_name: str | None = None
 

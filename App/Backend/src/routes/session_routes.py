@@ -36,6 +36,7 @@ def _build_session_response(db: Session, session) -> dict:
         "start_time": session.start_time,
         "end_time": session.end_time,
         "topic": session.topic,
+        "meeting_link": session.meeting_link,
         "teacher_name": teacher.name if teacher else None,
         "course_name": course.course_name if course else None
     }

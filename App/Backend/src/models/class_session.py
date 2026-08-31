@@ -46,3 +46,8 @@ class ClassSession(Base):
         String(200),
         nullable=True
     )
+
+    meeting_link: Mapped[str | None] = mapped_column(
+    String(500),
+    nullable=True
+)
