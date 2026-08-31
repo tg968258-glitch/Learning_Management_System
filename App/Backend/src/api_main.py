@@ -2,8 +2,10 @@ import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from Backend.src.core.cache import check_cache_connection
+import logging
 import time
 from fastapi import Request
+logger = logging.getLogger(__name__)
 
 from Backend.database import Base, engine
 
@@ -35,23 +37,25 @@ app = FastAPI(
 )
 
 @app.middleware("http")
-async def request_time_middleware(request: Request, call_next):
+async def logging_middleware(request: Request, call_next):
 
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     response = await call_next(request)
 
-    process_time = time.time() - start_time
+    process_time = time.perf_counter() - start_time
 
-    print(
-        f"{request.method} {request.url.path} "
-        f"completed in {process_time:.4f} seconds"
+    logger.info(
+        "%s %s - Status: %s - Time: %.4fs",
+        request.method,
+        request.url.path,
+        response.status_code,
+        process_time
     )
 
-    response.headers["X-Process-Time"] = str(process_time)
+    response.headers["X-Process-Time"] = f"{process_time:.4f}"
 
     return response
-
 @app.on_event("startup")
 def startup_event():
     if check_cache_connection():
