@@ -105,8 +105,6 @@ class DiscussionResponse(BaseModel):
     sender_uid: str
     parent_id: int | None = None
     message: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
     sender_name: str | None = None
     sender_role: str | None = None
 
@@ -158,7 +156,5 @@ class AnnouncementResponse(BaseModel):
     created_by: str
     title: str
     message: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -133,9 +133,6 @@ class CourseResponse(BaseModel):
     status: str
     category: str | None = None
     created_by: str | None = None
-    published_by: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
     teachers: list[CourseTeacherInfo] = []
 
     model_config = ConfigDict(from_attributes=True)

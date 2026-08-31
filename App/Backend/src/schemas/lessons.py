@@ -69,8 +69,6 @@ class LessonContentResponse(BaseModel):
     content_type: str
     content: str
     sequence_number: int
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -121,8 +119,6 @@ class ResourceResponse(BaseModel):
     resource_name: str
     resource_type: str | None = None
     resource_url: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -179,8 +175,6 @@ class LessonResponse(BaseModel):
     module_id: int
     lesson_title: str
     is_published: bool
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

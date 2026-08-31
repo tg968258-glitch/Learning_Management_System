@@ -119,9 +119,7 @@ class AssignmentResponse(BaseModel):
     due_date: datetime
     max_marks: float
     passing_marks: float
-    created_by: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    
 
     model_config = ConfigDict(from_attributes=True)
 

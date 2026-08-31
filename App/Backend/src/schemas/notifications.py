@@ -47,7 +47,6 @@ class NotificationResponse(BaseModel):
     message: str
     status: str
     is_read: bool
-    created_at: datetime | None = None
     sent_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -63,6 +62,5 @@ class AuditLogResponse(BaseModel):
     action: str
     entity_type: str
     entity_id: str | None = None
-    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
