@@ -29,6 +29,8 @@ from Backend.src.routes.quiz_routes import router as quiz_router
 from Backend.src.routes.session_routes import router as session_router
 from Backend.src.routes.student_routes import router as student_router
 from Backend.src.routes.teacher_routes import router as teacher_router
+from Backend.src.routes.file_routes import router as file_router
+
 
 app = FastAPI(
     title="LMS API",
@@ -97,3 +99,4 @@ app.include_router(discussion_router)
 app.include_router(announcement_router)
 app.include_router(notification_router)
 app.include_router(audit_router)
+app.include_router(file_router)
