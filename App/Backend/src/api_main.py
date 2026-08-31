@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from Backend.src.core.cache import check_cache_connection
 
 from Backend.database import Base, engine
 
@@ -30,6 +31,12 @@ app = FastAPI(
     description="Full-Featured Learning Management System REST API built with FastAPI and PostgreSQL",
     version="1.0.0"
 )
+@app.on_event("startup")
+def startup_event():
+    if check_cache_connection():
+        print("Valkey connected successfully")
+    else:
+        print("Valkey connection failed")
 
 # Ensure uploads directory exists and mount for static file access
 UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads"))
