@@ -2,6 +2,8 @@ import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from Backend.src.core.cache import check_cache_connection
+import time
+from fastapi import Request
 
 from Backend.database import Base, engine
 
@@ -31,6 +33,25 @@ app = FastAPI(
     description="Full-Featured Learning Management System REST API built with FastAPI and PostgreSQL",
     version="1.0.0"
 )
+
+@app.middleware("http")
+async def request_time_middleware(request: Request, call_next):
+
+    start_time = time.time()
+
+    response = await call_next(request)
+
+    process_time = time.time() - start_time
+
+    print(
+        f"{request.method} {request.url.path} "
+        f"completed in {process_time:.4f} seconds"
+    )
+
+    response.headers["X-Process-Time"] = str(process_time)
+
+    return response
+
 @app.on_event("startup")
 def startup_event():
     if check_cache_connection():
