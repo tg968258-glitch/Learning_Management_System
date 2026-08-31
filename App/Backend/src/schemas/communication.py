@@ -1,13 +1,48 @@
 from datetime import date, datetime, time
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from Backend.src.utils.input_validator import is_empty, validate_length
 from Backend.src.utils.numeric_validator import is_positive
 
+
 # =========================================================
 # CLASS SESSIONS SCHEMAS
 # =========================================================
+
+def validate_meeting_link(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    value = value.strip()
+
+    if is_empty(value):
+        return None
+
+    parsed_url = urlparse(value)
+
+    if parsed_url.scheme not in ("http", "https"):
+        raise ValueError(
+            "Meeting link must start with http:// or https://"
+        )
+
+    hostname = (parsed_url.hostname or "").lower()
+
+    valid_domain = (
+        hostname == "meet.google.com"
+        or hostname == "zoom.us"
+        or hostname.endswith(".zoom.us")
+        or hostname == "teams.microsoft.com"
+    )
+
+    if not valid_domain:
+        raise ValueError(
+            "Only Google Meet, Zoom, and Microsoft Teams links are allowed"
+        )
+
+    return value
+
 
 class ClassSessionBase(BaseModel):
     course_id: int
@@ -25,17 +60,35 @@ class ClassSessionBase(BaseModel):
             raise ValueError("Course ID must be positive")
         return value
 
+    @field_validator("teacher_id")
+    @classmethod
+    def validate_teacher_id(cls, value: int | None) -> int | None:
+        if value is not None and not is_positive(value):
+            raise ValueError("Teacher ID must be positive")
+        return value
+
     @field_validator("topic")
     @classmethod
     def validate_topic(cls, value: str | None) -> str | None:
         if value is None:
-            return value
+            return None
+
         value = value.strip()
+
         if is_empty(value):
             return None
+
         if not validate_length(value, 2, 200):
-            raise ValueError("Topic must be between 2 and 200 characters")
+            raise ValueError(
+                "Topic must be between 2 and 200 characters"
+            )
+
         return value
+
+    @field_validator("meeting_link")
+    @classmethod
+    def check_meeting_link(cls, value: str | None) -> str | None:
+        return validate_meeting_link(value)
 
 
 class ClassSessionCreate(ClassSessionBase):
@@ -49,6 +102,36 @@ class ClassSessionUpdate(BaseModel):
     end_time: time | None = None
     topic: str | None = None
     meeting_link: str | None = None
+
+    @field_validator("teacher_id")
+    @classmethod
+    def validate_teacher_id(cls, value: int | None) -> int | None:
+        if value is not None and not is_positive(value):
+            raise ValueError("Teacher ID must be positive")
+        return value
+
+    @field_validator("topic")
+    @classmethod
+    def validate_topic(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        value = value.strip()
+
+        if is_empty(value):
+            return None
+
+        if not validate_length(value, 2, 200):
+            raise ValueError(
+                "Topic must be between 2 and 200 characters"
+            )
+
+        return value
+
+    @field_validator("meeting_link")
+    @classmethod
+    def check_meeting_link(cls, value: str | None) -> str | None:
+        return validate_meeting_link(value)
 
 
 class ClassSessionResponse(BaseModel):
@@ -80,8 +163,10 @@ class DiscussionBase(BaseModel):
     @classmethod
     def validate_message(cls, value: str) -> str:
         value = value.strip()
+
         if is_empty(value):
             raise ValueError("Discussion message cannot be empty")
+
         return value
 
 
@@ -96,8 +181,10 @@ class DiscussionUpdate(BaseModel):
     @classmethod
     def validate_message(cls, value: str) -> str:
         value = value.strip()
+
         if is_empty(value):
             raise ValueError("Discussion message cannot be empty")
+
         return value
 
 
@@ -128,18 +215,27 @@ class AnnouncementBase(BaseModel):
     @classmethod
     def validate_title(cls, value: str) -> str:
         value = value.strip()
+
         if is_empty(value):
             raise ValueError("Title cannot be empty")
+
         if not validate_length(value, 2, 150):
-            raise ValueError("Title must be between 2 and 150 characters")
+            raise ValueError(
+                "Title must be between 2 and 150 characters"
+            )
+
         return value
 
     @field_validator("message")
     @classmethod
     def validate_message(cls, value: str) -> str:
         value = value.strip()
+
         if is_empty(value):
-            raise ValueError("Announcement message cannot be empty")
+            raise ValueError(
+                "Announcement message cannot be empty"
+            )
+
         return value
 
 
