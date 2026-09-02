@@ -1,8 +1,11 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
+from Backend.src.core.cache import CACHE_TTL, redis_client
 from Backend.src.models.course import Course
 from Backend.src.models.teacher import Teacher
 from Backend.src.models.user import User
@@ -23,6 +26,20 @@ router = APIRouter(
     prefix="/sessions",
     tags=["Class Sessions"]
 )
+
+
+# =========================================================
+# CACHE HELPER
+# =========================================================
+
+def _clear_sessions_cache():
+    """Delete all cached session results."""
+    keys = list(redis_client.scan_iter(match="sessions:*")) + list(redis_client.scan_iter(match="session:*"))
+    deleted_count = 0
+    for key in set(keys):
+        redis_client.delete(key)
+        deleted_count += 1
+    print(f"SESSIONS CACHE CLEARED: {deleted_count} key(s)")
 
 
 def _build_session_response(db: Session, session) -> dict:
@@ -53,8 +70,25 @@ def list_course_sessions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Course ID must be positive"
         )
+
+    cache_key = f"sessions:course:{course_id}"
+
+    cached = redis_client.get(cache_key)
+    if cached:
+        print(f"CACHE HIT: {cache_key}")
+        return json.loads(cached)
+
+    print(f"CACHE MISS: {cache_key}")
     sessions = get_sessions_by_course(db, course_id)
-    return [_build_session_response(db, s) for s in sessions]
+    response = [_build_session_response(db, s) for s in sessions]
+
+    redis_client.setex(
+        cache_key,
+        CACHE_TTL,
+        json.dumps(response, default=str)
+    )
+    print(f"CACHE CREATED: {cache_key}")
+    return response
 
 
 @router.get("/{session_id}", response_model=ClassSessionResponse)
@@ -69,13 +103,30 @@ def get_single_session(
             detail="Session ID must be positive"
         )
 
+    cache_key = f"session:{session_id}"
+
+    cached = redis_client.get(cache_key)
+    if cached:
+        print(f"CACHE HIT: {cache_key}")
+        return json.loads(cached)
+
+    print(f"CACHE MISS: {cache_key}")
     session = get_session(db, session_id)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
-    return _build_session_response(db, session)
+
+    response = _build_session_response(db, session)
+
+    redis_client.setex(
+        cache_key,
+        CACHE_TTL,
+        json.dumps(response, default=str)
+    )
+    print(f"CACHE CREATED: {cache_key}")
+    return response
 
 
 @router.post("/", response_model=ClassSessionResponse, status_code=status.HTTP_201_CREATED)
@@ -86,6 +137,7 @@ def schedule_class_session(
 ):
     try:
         created = create_session(db, session_in.model_dump())
+        _clear_sessions_cache()
         return _build_session_response(db, created)
     except ValueError as e:
         raise HTTPException(
@@ -113,6 +165,8 @@ def update_class_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
+
+    _clear_sessions_cache()
     return _build_session_response(db, updated)
 
 
@@ -134,4 +188,6 @@ def remove_class_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
+
+    _clear_sessions_cache()
     return {"message": "Session deleted successfully"}

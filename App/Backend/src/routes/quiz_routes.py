@@ -1,8 +1,11 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
+from Backend.src.core.cache import CACHE_TTL, redis_client
 from Backend.src.models.quiz import Quiz, StudentAnswer
 from Backend.src.models.student import Student
 from Backend.src.models.user import User
@@ -34,6 +37,20 @@ router = APIRouter(
     prefix="/quizzes",
     tags=["Quizzes"]
 )
+
+
+# =========================================================
+# CACHE HELPER
+# =========================================================
+
+def _clear_quizzes_cache():
+    """Delete all cached quiz results."""
+    keys = list(redis_client.scan_iter(match="quizzes:*")) + list(redis_client.scan_iter(match="quiz:*"))
+    deleted_count = 0
+    for key in set(keys):
+        redis_client.delete(key)
+        deleted_count += 1
+    print(f"QUIZZES CACHE CLEARED: {deleted_count} key(s)")
 
 
 def _build_quiz_detail_response(db: Session, quiz: Quiz, is_student: bool = False) -> dict:
@@ -75,6 +92,22 @@ def _build_quiz_detail_response(db: Session, quiz: Quiz, is_student: bool = Fals
     }
 
 
+def _build_quiz_summary(q: Quiz) -> dict:
+    return {
+        "quiz_id": q.quiz_id,
+        "lesson_id": q.lesson_id,
+        "title": q.title,
+        "description": q.description,
+        "max_marks": float(q.max_marks),
+        "passing_marks": float(q.passing_marks),
+        "duration_minutes": q.duration_minutes,
+        "max_attempts": q.max_attempts,
+        "is_published": q.is_published,
+        "created_at": q.created_at,
+        "updated_at": q.updated_at
+    }
+
+
 # =========================================================
 # LIST QUIZZES FOR A LESSON
 # =========================================================
@@ -92,23 +125,24 @@ def list_lesson_quizzes(
         )
 
     published_only = current_user.role == "student"
+    cache_key = f"quizzes:lesson:{lesson_id}:{published_only}"
+
+    cached = redis_client.get(cache_key)
+    if cached:
+        print(f"CACHE HIT: {cache_key}")
+        return json.loads(cached)
+
+    print(f"CACHE MISS: {cache_key}")
     quizzes = get_quizzes_by_lesson(db, lesson_id, published_only=published_only)
-    return [
-        {
-            "quiz_id": q.quiz_id,
-            "lesson_id": q.lesson_id,
-            "title": q.title,
-            "description": q.description,
-            "max_marks": float(q.max_marks),
-            "passing_marks": float(q.passing_marks),
-            "duration_minutes": q.duration_minutes,
-            "max_attempts": q.max_attempts,
-            "is_published": q.is_published,
-            "created_at": q.created_at,
-            "updated_at": q.updated_at
-        }
-        for q in quizzes
-    ]
+    response = [_build_quiz_summary(q) for q in quizzes]
+
+    redis_client.setex(
+        cache_key,
+        CACHE_TTL,
+        json.dumps(response, default=str)
+    )
+    print(f"CACHE CREATED: {cache_key}")
+    return response
 
 
 # =========================================================
@@ -127,6 +161,21 @@ def get_single_quiz(
             detail="Quiz ID must be positive"
         )
 
+    is_student = (current_user.role == "student")
+    cache_key = f"quiz:{quiz_id}:{'student' if is_student else 'teacher'}"
+
+    cached = redis_client.get(cache_key)
+    if cached:
+        print(f"CACHE HIT: {cache_key}")
+        quiz_dict = json.loads(cached)
+        if is_student and not quiz_dict.get("is_published"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Quiz is not published yet"
+            )
+        return quiz_dict
+
+    print(f"CACHE MISS: {cache_key}")
     quiz = get_quiz(db, quiz_id)
     if not quiz:
         raise HTTPException(
@@ -134,13 +183,21 @@ def get_single_quiz(
             detail="Quiz not found"
         )
 
-    if current_user.role == "student" and not quiz.is_published:
+    if is_student and not quiz.is_published:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Quiz is not published yet"
         )
 
-    return _build_quiz_detail_response(db, quiz, is_student=(current_user.role == "student"))
+    response = _build_quiz_detail_response(db, quiz, is_student=is_student)
+
+    redis_client.setex(
+        cache_key,
+        CACHE_TTL,
+        json.dumps(response, default=str)
+    )
+    print(f"CACHE CREATED: {cache_key}")
+    return response
 
 
 # =========================================================
@@ -155,19 +212,8 @@ def add_new_quiz(
 ):
     try:
         created = create_quiz(db, quiz_in.model_dump())
-        return {
-            "quiz_id": created.quiz_id,
-            "lesson_id": created.lesson_id,
-            "title": created.title,
-            "description": created.description,
-            "max_marks": float(created.max_marks),
-            "passing_marks": float(created.passing_marks),
-            "duration_minutes": created.duration_minutes,
-            "max_attempts": created.max_attempts,
-            "is_published": created.is_published,
-            "created_at": created.created_at,
-            "updated_at": created.updated_at
-        }
+        _clear_quizzes_cache()
+        return _build_quiz_summary(created)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -189,6 +235,7 @@ def add_question(
     try:
         created_q = add_question_to_quiz(db, quiz_id, question_in.model_dump())
         options = get_question_options(db, created_q.question_id)
+        _clear_quizzes_cache()
         return {
             "question_id": created_q.question_id,
             "quiz_id": created_q.quiz_id,
@@ -237,19 +284,8 @@ def update_existing_quiz(
                 detail="Quiz not found"
             )
 
-        return {
-            "quiz_id": updated.quiz_id,
-            "lesson_id": updated.lesson_id,
-            "title": updated.title,
-            "description": updated.description,
-            "max_marks": float(updated.max_marks),
-            "passing_marks": float(updated.passing_marks),
-            "duration_minutes": updated.duration_minutes,
-            "max_attempts": updated.max_attempts,
-            "is_published": updated.is_published,
-            "created_at": updated.created_at,
-            "updated_at": updated.updated_at
-        }
+        _clear_quizzes_cache()
+        return _build_quiz_summary(updated)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -280,6 +316,7 @@ def remove_quiz(
             detail="Quiz not found"
         )
 
+    _clear_quizzes_cache()
     return {"message": "Quiz deleted successfully"}
 
 
