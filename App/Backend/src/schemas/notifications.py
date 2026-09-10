@@ -12,6 +12,7 @@ class NotificationBase(BaseModel):
     uid: str
     session_id: int | None = None
     assignment_id: int | None = None
+    announcement_id: int | None = None
     notification_type: str
     title: str | None = None
     message: str
@@ -42,11 +43,13 @@ class NotificationResponse(BaseModel):
     uid: str
     session_id: int | None = None
     assignment_id: int | None = None
+    announcement_id: int | None = None
     notification_type: str
     title: str | None = None
     message: str
     status: str
     is_read: bool
+    created_at: datetime | None = None
     sent_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -62,5 +65,17 @@ class AuditLogResponse(BaseModel):
     action: str
     entity_type: str
     entity_id: str | None = None
+    user_name: str | None = None
+    role: str | None = None
+    status: str = "success"
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AuditLogPageResponse(BaseModel):
+    items: list[AuditLogResponse]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int

@@ -67,3 +67,9 @@ class Notification(Base):
         DateTime,
         nullable=True
     )
+
+    announcement_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("announcements.announcement_id", ondelete="SET NULL"),
+        nullable=True,
+    )

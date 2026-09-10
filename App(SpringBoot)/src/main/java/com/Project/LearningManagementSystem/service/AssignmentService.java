@@ -29,6 +29,7 @@ public class AssignmentService {
         private final SubmissionRepository submissionRepository;
         private final StudentRepository studentRepository;
         private final CourseRepository courseRepository;
+        private final CourseAccessService courseAccessService;
 
         public SubmissionResponse toSubmissionResponse(
                         Submission submission) {
@@ -76,6 +77,40 @@ public class AssignmentService {
                                 .toList();
         }
 
+        public List<AssignmentResponse> getAllAssignments(
+                        Integer courseId, Integer moduleId) {
+
+                if (courseId != null) {
+                        return assignmentRepository
+                                        .findByCourseId(courseId)
+                                        .stream()
+                                        .filter(a -> moduleId == null || a.getModuleId().equals(moduleId))
+                                        .map(this::toAssignmentResponse)
+                                        .toList();
+                }
+                return assignmentRepository
+                                .findAll()
+                                .stream()
+                                .filter(a -> moduleId == null || a.getModuleId().equals(moduleId))
+                                .map(this::toAssignmentResponse)
+                                .toList();
+        }
+
+        public List<SubmissionResponse> getSubmissionsByAssignment(Integer assignmentId) {
+                if (!assignmentRepository.existsById(assignmentId)) {
+                        throw new ResourceNotFoundException("Assignment not found: " + assignmentId);
+                }
+                return submissionRepository.findByAssignmentId(assignmentId).stream()
+                        .map(this::toSubmissionResponse).toList();
+        }
+
+        public SubmissionResponse getStudentSubmission(Integer assignmentId, Integer studentId) {
+                return submissionRepository.findByAssignmentIdAndStudentId(assignmentId, studentId)
+                        .map(this::toSubmissionResponse)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "No submission found for assignment " + assignmentId + " and student " + studentId));
+        }
+
         public AssignmentDetailResponse getAssignmentDetail(
                         Integer assignmentId) {
 
@@ -114,6 +149,7 @@ public class AssignmentService {
                                                         + request.getCourse_id());
                 }
 
+                courseAccessService.requireAssignedTeacher(createdByUid, request.getCourse_id());
                 Assignment assignment = new Assignment();
 
                 assignment.setCourseId(request.getCourse_id());
@@ -135,7 +171,7 @@ public class AssignmentService {
         @Transactional
         public AssignmentResponse updateAssignment(
                         Integer assignmentId,
-                        AssignmentUpdateRequest request) {
+                        AssignmentUpdateRequest request, String teacherUid) {
 
                 Assignment assignment = assignmentRepository
                                 .findById(assignmentId)
@@ -143,6 +179,7 @@ public class AssignmentService {
                                                 () -> new ResourceNotFoundException(
                                                                 "Assignment not found: " + assignmentId));
 
+                courseAccessService.requireAssignedTeacher(teacherUid, assignment.getCourseId());
                 if (request.getTitle() != null &&
                                 !request.getTitle().isBlank()) {
                         assignment.setTitle(
@@ -177,12 +214,11 @@ public class AssignmentService {
         }
 
         @Transactional
-        public void deleteAssignment(Integer assignmentId) {
+        public void deleteAssignment(Integer assignmentId, String teacherUid) {
 
-                if (!assignmentRepository.existsById(assignmentId)) {
-                        throw new ResourceNotFoundException(
-                                        "Assignment not found: " + assignmentId);
-                }
+                Assignment assignment = assignmentRepository.findById(assignmentId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Assignment not found: " + assignmentId));
+                courseAccessService.requireAssignedTeacher(teacherUid, assignment.getCourseId());
 
                 assignmentRepository.deleteById(assignmentId);
         }
@@ -193,7 +229,7 @@ public class AssignmentService {
                         Integer studentId,
                         SubmissionCreateRequest request) {
 
-                assignmentRepository
+                Assignment assignment = assignmentRepository
                                 .findById(assignmentId)
                                 .orElseThrow(
                                                 () -> new ResourceNotFoundException(
@@ -205,15 +241,28 @@ public class AssignmentService {
                                                 studentId)
                                 .orElse(new Submission());
 
+                if (submission.getSubmissionId() != null
+                                && "graded".equalsIgnoreCase(submission.getStatus())) {
+                        throw new IllegalArgumentException("A graded submission cannot be resubmitted");
+                }
+                if (submission.getSubmissionId() != null
+                                && assignment.getDueDate() != null
+                                && LocalDateTime.now().isAfter(assignment.getDueDate())) {
+                        throw new IllegalArgumentException("The resubmission deadline has passed");
+                }
+
                 submission.setAssignmentId(assignmentId);
                 submission.setStudentId(studentId);
                 submission.setSubmissionDate(
                                 LocalDateTime.now());
-                submission.setSubmissionText(
-                                request.getSubmission_text());
-                submission.setSubmissionFile(
-                                request.getSubmission_file());
-                submission.setStatus("submitted");
+                if (request.getSubmission_text() != null) {
+                        submission.setSubmissionText(request.getSubmission_text());
+                }
+                if (request.getSubmission_file() != null) {
+                        submission.setSubmissionFile(request.getSubmission_file());
+                }
+                submission.setStatus(assignment.getDueDate() != null
+                                && LocalDateTime.now().isAfter(assignment.getDueDate()) ? "late" : "submitted");
 
                 submissionRepository.save(submission);
 
@@ -224,7 +273,7 @@ public class AssignmentService {
         public SubmissionResponse gradeSubmission(
                         Integer assignmentId,
                         Integer studentId,
-                        Integer teacherId,
+                        Integer teacherId, String teacherUid,
                         SubmissionGradeRequest request) {
 
                 Submission submission = submissionRepository
@@ -238,6 +287,35 @@ public class AssignmentService {
                                                                                 + " and student "
                                                                                 + studentId));
 
+                Assignment assignment = assignmentRepository.findById(assignmentId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Assignment not found: " + assignmentId));
+                courseAccessService.requireAssignedTeacher(teacherUid, assignment.getCourseId());
+                submission.setMarks(request.getMarks());
+                submission.setFeedback(request.getFeedback());
+                submission.setGradedBy(teacherId);
+                submission.setStatus("graded");
+                submission.setUpdatedAt(LocalDateTime.now());
+
+                submissionRepository.save(submission);
+
+                return toSubmissionResponse(submission);
+        }
+
+        @Transactional
+        public SubmissionResponse gradeSubmissionById(
+                        Integer submissionId,
+                        Integer teacherId, String teacherUid,
+                        SubmissionGradeRequest request) {
+
+                Submission submission = submissionRepository
+                                .findById(submissionId)
+                                .orElseThrow(
+                                                () -> new ResourceNotFoundException(
+                                                                "Submission not found: " + submissionId));
+
+                Assignment assignment = assignmentRepository.findById(submission.getAssignmentId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Assignment not found: " + submission.getAssignmentId()));
+                courseAccessService.requireAssignedTeacher(teacherUid, assignment.getCourseId());
                 submission.setMarks(request.getMarks());
                 submission.setFeedback(request.getFeedback());
                 submission.setGradedBy(teacherId);

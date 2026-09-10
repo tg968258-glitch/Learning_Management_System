@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
 from Backend.src.core.cache import CACHE_TTL, redis_client
+from Backend.src.core.course_access import require_course_access, require_lesson_access, require_quiz_access
 from Backend.src.models.quiz import Quiz, StudentAnswer
 from Backend.src.models.student import Student
 from Backend.src.models.user import User
@@ -45,12 +46,16 @@ router = APIRouter(
 
 def _clear_quizzes_cache():
     """Delete all cached quiz results."""
-    keys = list(redis_client.scan_iter(match="quizzes:*")) + list(redis_client.scan_iter(match="quiz:*"))
-    deleted_count = 0
-    for key in set(keys):
-        redis_client.delete(key)
-        deleted_count += 1
-    print(f"QUIZZES CACHE CLEARED: {deleted_count} key(s)")
+    try:
+        keys = list(redis_client.scan_iter(match="quizzes:*")) + list(redis_client.scan_iter(match="quiz:*"))
+        deleted_count = 0
+        for key in set(keys):
+            redis_client.delete(key)
+            deleted_count += 1
+        print(f"QUIZZES CACHE CLEARED: {deleted_count} key(s)")
+    except Exception as exc:
+        # Cache availability must never turn a successful database write into an API error.
+        print(f"QUIZZES CACHE CLEAR SKIPPED: {exc}")
 
 
 def _build_quiz_detail_response(db: Session, quiz: Quiz, is_student: bool = False) -> dict:
@@ -78,6 +83,7 @@ def _build_quiz_detail_response(db: Session, quiz: Quiz, is_student: bool = Fals
 
     return {
         "quiz_id": quiz.quiz_id,
+        "course_id": quiz.course_id,
         "lesson_id": quiz.lesson_id,
         "title": quiz.title,
         "description": quiz.description,
@@ -95,6 +101,7 @@ def _build_quiz_detail_response(db: Session, quiz: Quiz, is_student: bool = Fals
 def _build_quiz_summary(q: Quiz) -> dict:
     return {
         "quiz_id": q.quiz_id,
+        "course_id": q.course_id,
         "lesson_id": q.lesson_id,
         "title": q.title,
         "description": q.description,
@@ -124,6 +131,8 @@ def list_lesson_quizzes(
             detail="Lesson ID must be positive"
         )
 
+    require_lesson_access(db, current_user, lesson_id)
+
     published_only = current_user.role == "student"
     cache_key = f"quizzes:lesson:{lesson_id}:{published_only}"
 
@@ -145,6 +154,21 @@ def list_lesson_quizzes(
     return response
 
 
+@router.get("/course/{course_id}", response_model=list[QuizResponse])
+def list_course_quizzes(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    require_course_access(db, current_user, course_id)
+
+    query = db.query(Quiz).filter(Quiz.course_id == course_id)
+    if current_user.role == "student":
+        query = query.filter(Quiz.is_published == True)
+    quizzes = query.all()
+    return [_build_quiz_summary(q) for q in quizzes]
+
+
 # =========================================================
 # GET SINGLE QUIZ WITH QUESTIONS
 # =========================================================
@@ -160,6 +184,8 @@ def get_single_quiz(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Quiz ID must be positive"
         )
+
+    require_quiz_access(db, current_user, quiz_id)
 
     is_student = (current_user.role == "student")
     cache_key = f"quiz:{quiz_id}:{'student' if is_student else 'teacher'}"
@@ -211,6 +237,8 @@ def add_new_quiz(
     current_user: User = Depends(require_roles("admin", "teacher"))
 ):
     try:
+        # Teachers may author quizzes only in courses assigned to them.
+        require_course_access(db, current_user, quiz_in.course_id)
         created = create_quiz(db, quiz_in.model_dump())
         _clear_quizzes_cache()
         return _build_quiz_summary(created)
@@ -233,6 +261,7 @@ def add_question(
     current_user: User = Depends(require_roles("admin", "teacher"))
 ):
     try:
+        require_quiz_access(db, current_user, quiz_id)
         created_q = add_question_to_quiz(db, quiz_id, question_in.model_dump())
         options = get_question_options(db, created_q.question_id)
         _clear_quizzes_cache()
@@ -275,6 +304,7 @@ def update_existing_quiz(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Quiz ID must be positive"
         )
+    require_quiz_access(db, current_user, quiz_id)
 
     try:
         updated = update_quiz(db, quiz_id, quiz_in.model_dump(exclude_unset=True))
@@ -308,6 +338,7 @@ def remove_quiz(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Quiz ID must be positive"
         )
+    require_quiz_access(db, current_user, quiz_id)
 
     deleted = delete_quiz(db, quiz_id)
     if not deleted:
@@ -330,6 +361,7 @@ def start_attempt(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("student"))
 ):
+    require_quiz_access(db, current_user, quiz_id)
     student = db.query(Student).filter(Student.uid == current_user.uid).first()
     if not student:
         raise HTTPException(
@@ -426,6 +458,7 @@ def get_my_attempts(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("student"))
 ):
+    require_quiz_access(db, current_user, quiz_id)
     student = db.query(Student).filter(Student.uid == current_user.uid).first()
     if not student:
         raise HTTPException(

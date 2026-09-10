@@ -44,8 +44,23 @@ public class TeacherService {
     }
 
     @Cacheable(value = "teachers", key = "'all'")
-    public List<Teacher> getAllTeachers() {
-        return teacherRepository.findAll();
+    public List<TeacherResponse> getAllTeachers() {
+        return teacherRepository.findAll().stream().map(t -> {
+            User user = userRepository.findById(t.getUid()).orElse(null);
+            return new TeacherResponse(
+                t.getTeacherId(),
+                t.getUid(),
+                null,
+                t.getName(),
+                user != null ? user.getEmail() : null,
+                t.getPhoneNumber(),
+                null,
+                t.getSpecialization(),
+                t.getQualification(),
+                t.getExperience(),
+                null
+            );
+        }).toList();
     }
 
     @Transactional

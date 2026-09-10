@@ -24,6 +24,11 @@ def test_openapi_docs():
     assert "/teachers/" in paths
     assert "/courses/" in paths
     assert "/enrollments/" in paths
+    assert set(paths["/enrollments/"]) == {"get", "post"}
+    assert "/enrollments/{enrollment_id}/status" not in paths
+    enrollment_schema = schema["components"]["schemas"]["EnrollmentCreate"]
+    assert enrollment_schema["required"] == ["course_id"]
+    assert set(enrollment_schema["properties"]) == {"course_id"}
     assert "/modules/" in paths
     assert "/lessons/" in paths
     assert "/progress/lesson/{lesson_id}" in paths

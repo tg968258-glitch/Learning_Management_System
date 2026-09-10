@@ -1,5 +1,7 @@
 package com.Project.LearningManagementSystem.dto;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -54,5 +56,21 @@ public class NotificationDtos {
         private String action;
         private String entity_type;
         private String entity_id;
+        private String user_name;
+        private String role;
+        private String status;
+        private LocalDateTime created_at;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AuditLogPageResponse {
+        private List<AuditLogResponse> items;
+        private int page;
+        private int page_size;
+        private long total;
+        private int total_pages;
     }
 }

@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from Backend.src.models.course import CourseTeacher
 from Backend.src.models.enrollment import Enrollment
 from Backend.src.repositories.course_repository import CourseRepository
 from Backend.src.repositories.enrollment_repository import EnrollmentRepository
@@ -48,6 +49,13 @@ def create_enrollment(
     course = CourseRepository.get_by_id(db, course_id)
     if not course:
         raise ValueError("Course does not exist")
+    if course.status != "active":
+        raise ValueError("Only active courses are available for enrollment")
+    has_assigned_teacher = db.query(CourseTeacher).filter(
+        CourseTeacher.course_id == course_id
+    ).first()
+    if not has_assigned_teacher:
+        raise ValueError("This course is not available until a teacher is assigned")
 
     existing = EnrollmentRepository.get_by_student_and_course(db, student_id, course_id)
     if existing:

@@ -16,7 +16,11 @@ from Backend.src.services.auth_service import (
     reset_user_password,
     verify_email,
 )
-from Backend.src.services.invitation_service import accept_teacher_invitation
+from Backend.src.services.audit_service import log_activity
+from Backend.src.services.invitation_service import (
+    accept_teacher_invitation,
+    get_invitation_details,
+)
 from Backend.src.utils.input_validator import (
     is_empty,
     is_valid_email,
@@ -191,6 +195,8 @@ def login(
             status_code=401,
             detail="Invalid email or password"
         )
+
+    log_activity(db, result["uid"], "logged_in", "authentication", result["session_id"])
 
     return {
         "message": "Login successful",
@@ -462,7 +468,7 @@ def refresh_token(
 
 class AcceptTeacherInviteRequest(BaseModel):
     token: str
-    username: str
+    username: str | None = None
     password: str
     name: str
     phone_number: str | None = None
@@ -480,8 +486,8 @@ class AcceptTeacherInviteRequest(BaseModel):
     @field_validator("username")
     @classmethod
     def validate_username(cls, value):
-        if is_empty(value):
-            raise ValueError("Username cannot be empty")
+        if value is None or is_empty(value):
+            return None
         if not validate_length(value, 3, 50):
             raise ValueError("Username must be between 3 and 50 characters")
         return value
@@ -508,6 +514,17 @@ class AcceptTeacherInviteRequest(BaseModel):
         if not validate_length(value, 2, 100):
             raise ValueError("Name must be between 2 and 100 characters")
         return value
+
+
+@router.get("/invitation-details")
+def verify_teacher_invitation_token(
+    token: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        return get_invitation_details(db, token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/accept-teacher-invite")

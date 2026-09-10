@@ -156,4 +156,52 @@ public class LessonService {
                 resource.getResourceId(), resource.getLessonId(), resource.getResourceName(),
                 resource.getResourceType(), resource.getResourceUrl());
     }
+
+    @Transactional
+    @CacheEvict(value = {"lessons", "lessonDetails"}, allEntries = true)
+    public LessonContentResponse updateLessonContent(Integer contentId, com.Project.LearningManagementSystem.dto.LessonDtos.LessonContentUpdateRequest request) {
+        LessonContent content = contentRepository.findById(contentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lesson content not found: " + contentId));
+
+        if (request.getContent_type() != null) content.setContentType(request.getContent_type());
+        if (request.getContent() != null) content.setContent(request.getContent());
+        if (request.getSequence_number() != null) content.setSequenceNumber(request.getSequence_number());
+        content.setUpdatedAt(LocalDateTime.now());
+        contentRepository.save(content);
+
+        return new LessonContentResponse(content.getContentId(), content.getLessonId(), content.getContentType(), content.getContent(), content.getSequenceNumber());
+    }
+
+    @Transactional
+    @CacheEvict(value = {"lessons", "lessonDetails"}, allEntries = true)
+    public void deleteLessonContent(Integer contentId) {
+        if (!contentRepository.existsById(contentId)) {
+            throw new ResourceNotFoundException("Lesson content not found: " + contentId);
+        }
+        contentRepository.deleteById(contentId);
+    }
+
+    @Transactional
+    @CacheEvict(value = {"lessons", "lessonDetails"}, allEntries = true)
+    public ResourceResponse updateResource(Integer resourceId, com.Project.LearningManagementSystem.dto.LessonDtos.ResourceUpdateRequest request) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Resource not found: " + resourceId));
+
+        if (request.getResource_name() != null) resource.setResourceName(request.getResource_name().trim());
+        if (request.getResource_type() != null) resource.setResourceType(request.getResource_type());
+        if (request.getResource_url() != null) resource.setResourceUrl(request.getResource_url());
+        resource.setUpdatedAt(LocalDateTime.now());
+        resourceRepository.save(resource);
+
+        return new ResourceResponse(resource.getResourceId(), resource.getLessonId(), resource.getResourceName(), resource.getResourceType(), resource.getResourceUrl());
+    }
+
+    @Transactional
+    @CacheEvict(value = {"lessons", "lessonDetails"}, allEntries = true)
+    public void deleteResource(Integer resourceId) {
+        if (!resourceRepository.existsById(resourceId)) {
+            throw new ResourceNotFoundException("Resource not found: " + resourceId);
+        }
+        resourceRepository.deleteById(resourceId);
+    }
 }

@@ -8,6 +8,10 @@ def get_all_students(db: Session) -> list[Student]:
     return StudentRepository.get_all(db)
 
 
+def get_student_dashboard_stats(db: Session, uid: str) -> dict:
+    return StudentRepository.get_dashboard_stats(db, uid)
+
+
 def get_student(db: Session, student_id: int) -> Student | None:
     return StudentRepository.get_by_id(db, student_id)
 

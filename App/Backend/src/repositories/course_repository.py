@@ -83,13 +83,33 @@ class CourseRepository:
 
     @staticmethod
     def set_course_teachers(db: Session, course_id: int, teacher_ids: list[int]) -> list[Teacher]:
-        db.query(CourseTeacher).filter(CourseTeacher.course_id == course_id).delete()
-        assigned_teachers = []
+        # Preserve existing assignments and add only missing teachers.
+        teachers = []
         for teacher_id in set(teacher_ids):
             teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id).first()
             if not teacher:
                 raise ValueError(f"Teacher with ID {teacher_id} not found")
-            db.add(CourseTeacher(course_id=course_id, teacher_id=teacher_id))
-            assigned_teachers.append(teacher)
+            teachers.append(teacher)
+
+        existing_ids = {
+            row[0] for row in db.query(CourseTeacher.teacher_id).filter(
+                CourseTeacher.course_id == course_id
+            ).all()
+        }
+        for teacher in teachers:
+            if teacher.teacher_id not in existing_ids:
+                db.add(CourseTeacher(course_id=course_id, teacher_id=teacher.teacher_id))
         db.commit()
-        return assigned_teachers
+        return CourseRepository.get_teachers_by_course(db, course_id)
+
+    @staticmethod
+    def remove_course_teacher(db: Session, course_id: int, teacher_id: int) -> bool:
+        association = db.query(CourseTeacher).filter(
+            CourseTeacher.course_id == course_id,
+            CourseTeacher.teacher_id == teacher_id,
+        ).first()
+        if not association:
+            return False
+        db.delete(association)
+        db.commit()
+        return True

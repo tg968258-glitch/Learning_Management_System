@@ -30,7 +30,8 @@ class QuizRepository:
     @staticmethod
     def create_quiz(db: Session, quiz_data: dict) -> Quiz:
         quiz = Quiz(
-            lesson_id=quiz_data["lesson_id"],
+            course_id=quiz_data["course_id"],
+            lesson_id=quiz_data.get("lesson_id"),
             title=quiz_data["title"],
             description=quiz_data.get("description"),
             max_marks=quiz_data["max_marks"],

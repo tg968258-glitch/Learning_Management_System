@@ -1,5 +1,6 @@
 package com.Project.LearningManagementSystem.service;
 
+import com.Project.LearningManagementSystem.dto.AuthDtos.InvitationDetailsResponse;
 import com.Project.LearningManagementSystem.entity.Teacher;
 import com.Project.LearningManagementSystem.entity.TeacherInvitation;
 import com.Project.LearningManagementSystem.entity.User;
@@ -28,6 +29,27 @@ public class InvitationService {
     private final AuthService authService;
 
     private static final int INVITE_EXPIRY_HOURS = 48;
+
+    @Transactional(readOnly = true)
+    public InvitationDetailsResponse getInvitationDetails(String token) {
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException("Invitation token is required.");
+        }
+
+        String tokenHash = AuthService.hashToken(token.trim());
+        TeacherInvitation invitation = invitationRepository.findByTokenHash(tokenHash)
+            .orElseThrow(() -> new BadRequestException("Invalid or already used invitation token."));
+
+        if (invitation.isUsed()) {
+            throw new BadRequestException("Invalid or already used invitation token.");
+        }
+
+        if (invitation.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("This invitation has expired. Please ask an admin to send a new one.");
+        }
+
+        return new InvitationDetailsResponse(invitation.getEmail(), invitation.getExpiresAt(), true);
+    }
 
     @Transactional
     public Map<String, Object> createTeacherInvitation(String email, String invitedByUid, String acceptUrlBase) {

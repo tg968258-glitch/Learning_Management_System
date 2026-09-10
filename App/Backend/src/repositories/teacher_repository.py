@@ -1,11 +1,46 @@
-from datetime import datetime
+from datetime import date, datetime
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from Backend.src.models.assignment import Assignment
+from Backend.src.models.class_session import ClassSession
+from Backend.src.models.course import Course, CourseTeacher
+from Backend.src.models.enrollment import Enrollment
 from Backend.src.models.teacher import Teacher
 from Backend.src.models.teacher_invitation import TeacherInvitation
 
 
 class TeacherRepository:
+    @staticmethod
+    def get_dashboard_stats(db: Session, uid: str) -> dict:
+        """Aggregate dashboard counts for the teacher identified by the auth UID."""
+        row = db.query(
+            db.query(func.count(func.distinct(Course.course_id)))
+            .join(CourseTeacher, CourseTeacher.course_id == Course.course_id)
+            .join(Teacher, Teacher.teacher_id == CourseTeacher.teacher_id)
+            .filter(Teacher.uid == uid, Course.status == "active")
+            .scalar_subquery()
+            .label("active_courses"),
+            db.query(func.count(func.distinct(Enrollment.student_id)))
+            .join(CourseTeacher, CourseTeacher.course_id == Enrollment.course_id)
+            .join(Teacher, Teacher.teacher_id == CourseTeacher.teacher_id)
+            .filter(Teacher.uid == uid, Enrollment.status == "active")
+            .scalar_subquery()
+            .label("total_students"),
+            db.query(func.count(func.distinct(Assignment.assignment_id)))
+            .join(CourseTeacher, CourseTeacher.course_id == Assignment.course_id)
+            .join(Teacher, Teacher.teacher_id == CourseTeacher.teacher_id)
+            .filter(Teacher.uid == uid)
+            .scalar_subquery()
+            .label("assignments"),
+            db.query(func.count(func.distinct(ClassSession.session_id)))
+            .join(Teacher, Teacher.teacher_id == ClassSession.teacher_id)
+            .filter(Teacher.uid == uid, ClassSession.session_date >= date.today())
+            .scalar_subquery()
+            .label("live_sessions"),
+        ).one()
+        return {key: int(value or 0) for key, value in row._mapping.items()}
+
     @staticmethod
     def get_by_id(db: Session, teacher_id: int) -> Teacher | None:
         return db.query(Teacher).filter(Teacher.teacher_id == teacher_id).first()
@@ -72,6 +107,7 @@ class TeacherRepository:
             invited_by=invited_by_uid,
             expires_at=expires_at,
             is_used=False,
+            status="Pending",
             created_at=datetime.utcnow()
         )
         db.add(invitation)
@@ -89,7 +125,8 @@ class TeacherRepository:
             db.query(TeacherInvitation)
             .filter(
                 TeacherInvitation.token_hash == token_hash,
-                TeacherInvitation.is_used == False
+                TeacherInvitation.is_used == False,
+                TeacherInvitation.status == "Pending"
             )
             .first()
         )
@@ -101,6 +138,7 @@ class TeacherRepository:
             .filter(
                 TeacherInvitation.email == email,
                 TeacherInvitation.is_used == False,
+                TeacherInvitation.status == "Pending",
                 TeacherInvitation.expires_at > datetime.utcnow()
             )
             .first()
@@ -109,4 +147,18 @@ class TeacherRepository:
     @staticmethod
     def mark_invitation_used(db: Session, invitation: TeacherInvitation) -> None:
         invitation.is_used = True
+        invitation.status = "Accepted"
         db.commit()
+
+    @staticmethod
+    def expire_pending_invitations(db: Session) -> None:
+        db.query(TeacherInvitation).filter(
+            TeacherInvitation.status == "Pending",
+            TeacherInvitation.expires_at <= datetime.utcnow(),
+        ).update({"status": "Rejected"}, synchronize_session=False)
+        db.commit()
+
+    @staticmethod
+    def get_invitations(db: Session) -> list[TeacherInvitation]:
+        TeacherRepository.expire_pending_invitations(db)
+        return db.query(TeacherInvitation).order_by(TeacherInvitation.created_at.desc()).all()

@@ -1,6 +1,8 @@
 import json
+from math import ceil
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session
 
 from Backend.database import get_db
@@ -11,11 +13,13 @@ from Backend.src.core.auth_dependency import (
 from Backend.src.core.cache import CACHE_TTL, redis_client
 from Backend.src.models.user import User
 from Backend.src.schemas.students import StudentUpdate
+from Backend.src.schemas.dashboard import StudentDashboardStats
 from Backend.src.services.student_service import (
     delete_student,
     get_all_students,
     get_student,
     get_student_by_uid,
+    get_student_dashboard_stats,
     update_student,
 )
 
@@ -23,6 +27,19 @@ router = APIRouter(
     prefix="/students",
     tags=["Students"]
 )
+
+dashboard_router = APIRouter(
+    prefix="/student",
+    tags=["Student Dashboard"]
+)
+
+
+@dashboard_router.get("/dashboard/stats", response_model=StudentDashboardStats)
+def student_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("student"))
+):
+    return get_student_dashboard_stats(db, current_user.uid)
 
 
 # =========================================================
@@ -47,6 +64,31 @@ def _build_student_dict(s) -> dict:
         "date_of_birth": s.date_of_birth.isoformat() if hasattr(s.date_of_birth, "isoformat") else s.date_of_birth,
         "gender": s.gender,
         "phone_number": s.phone_number,
+    }
+
+
+@router.get("/page")
+def get_students_page(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(6, ge=1, le=100),
+    search: str | None = Query(None, max_length=150),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher")),
+):
+    query = db.query(Student)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(or_(
+            Student.name.ilike(term),
+            Student.uid.ilike(term),
+            cast(Student.student_id, String).ilike(term),
+        ))
+    total = query.count()
+    rows = query.order_by(Student.name).offset((page - 1) * page_size).limit(page_size).all()
+    return {
+        "items": [_build_student_dict(row) for row in rows],
+        "page": page, "page_size": page_size, "total": total,
+        "total_pages": ceil(total / page_size) if total else 0,
     }
 
 

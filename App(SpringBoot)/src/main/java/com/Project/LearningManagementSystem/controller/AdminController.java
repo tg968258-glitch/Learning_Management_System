@@ -1,6 +1,5 @@
 package com.Project.LearningManagementSystem.controller;
 
-import com.Project.LearningManagementSystem.dto.AdminDtos.CreateTeacherRequest;
 import com.Project.LearningManagementSystem.dto.AdminDtos.InviteTeacherRequest;
 import com.Project.LearningManagementSystem.dto.AdminDtos.UserResponse;
 import com.Project.LearningManagementSystem.dto.AdminDtos.UserStatusUpdateRequest;
@@ -65,14 +64,6 @@ public class AdminController {
                 "message", "User status successfully updated to " + (request.is_active() ? "active" : "inactive"),
                 "uid", updated.getUid(),
                 "is_active", updated.isActive()));
-    }
-
-    @PostMapping("/create-teacher")
-    public ResponseEntity<Map<String, Object>> createTeacher(@Valid @RequestBody CreateTeacherRequest request) {
-        return ResponseEntity.ok(adminService.createTeacherDirectly(
-                request.getEmail(), request.getUsername(), request.getPassword(),
-                request.getName(), request.getPhone_number(), request.getSpecialization(),
-                request.getQualification(), request.getExperience()));
     }
 
     @PostMapping("/invite-teacher")

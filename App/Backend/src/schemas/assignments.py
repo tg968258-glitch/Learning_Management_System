@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from Backend.src.utils.input_validator import is_empty, validate_length
 from Backend.src.utils.numeric_validator import is_positive
@@ -12,6 +12,12 @@ class AssignmentBase(BaseModel):
     due_date: datetime
     max_marks: float
     passing_marks: float
+
+    @model_validator(mode="after")
+    def validate_marks_range(self):
+        if self.passing_marks > self.max_marks:
+            raise ValueError("Passing marks cannot exceed maximum marks")
+        return self
 
     @field_validator("title")
     @classmethod
@@ -57,6 +63,20 @@ class AssignmentUpdate(BaseModel):
     max_marks: float | None = None
     passing_marks: float | None = None
 
+    @field_validator("max_marks")
+    @classmethod
+    def validate_max_marks(cls, value: float | None) -> float | None:
+        if value is not None and value <= 0:
+            raise ValueError("Max marks must be positive")
+        return round(value, 2) if value is not None else None
+
+    @field_validator("passing_marks")
+    @classmethod
+    def validate_passing_marks(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("Passing marks cannot be negative")
+        return round(value, 2) if value is not None else None
+
     @field_validator("title")
     @classmethod
     def validate_title(cls, value: str | None) -> str | None:
@@ -73,6 +93,12 @@ class AssignmentUpdate(BaseModel):
 class SubmissionCreate(BaseModel):
     submission_text: str | None = None
     submission_file: str | None = None
+
+    @model_validator(mode="after")
+    def require_submission_content(self):
+        if not self.submission_text and not self.submission_file:
+            raise ValueError("Provide submission text or a submission file")
+        return self
 
     @field_validator("submission_text", "submission_file")
     @classmethod

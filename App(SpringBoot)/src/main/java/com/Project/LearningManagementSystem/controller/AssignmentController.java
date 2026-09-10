@@ -51,13 +51,8 @@ public class AssignmentController {
     public ResponseEntity<List<AssignmentResponse>> listAssignments(
             @RequestParam(required = false) Integer course_id,
             @RequestParam(required = false) Integer module_id) {
-
-        if (course_id != null) {
-            return ResponseEntity.ok(
-                    assignmentService.getAssignmentsByCourse(course_id));
-        }
-
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(
+                assignmentService.getAllAssignments(course_id, module_id));
     }
 
     @GetMapping("/{assignment_id}")
@@ -68,7 +63,7 @@ public class AssignmentController {
     }
 
     @PostMapping("/")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<AssignmentResponse> createAssignment(
             @Valid @RequestBody AssignmentCreateRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
@@ -81,23 +76,25 @@ public class AssignmentController {
     }
 
     @PutMapping("/{assignment_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<AssignmentResponse> updateAssignment(
             @PathVariable Integer assignment_id,
-            @Valid @RequestBody AssignmentUpdateRequest request) {
+            @Valid @RequestBody AssignmentUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
 
         return ResponseEntity.ok(
                 assignmentService.updateAssignment(
                         assignment_id,
-                        request));
+                        request, currentUser.getUid()));
     }
 
     @DeleteMapping("/{assignment_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<Map<String, String>> removeAssignment(
-            @PathVariable Integer assignment_id) {
+            @PathVariable Integer assignment_id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
 
-        assignmentService.deleteAssignment(assignment_id);
+        assignmentService.deleteAssignment(assignment_id, currentUser.getUid());
 
         return ResponseEntity.ok(
                 Map.of("message", "Assignment deleted successfully"));
@@ -156,32 +153,51 @@ public class AssignmentController {
                         request));
     }
 
-    @PutMapping("/{assignment_id}/submissions/{student_id}/grade")
+    @GetMapping("/{assignment_id}/submissions")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<List<SubmissionResponse>> getSubmissions(
+            @PathVariable Integer assignment_id) {
+        return ResponseEntity.ok(assignmentService.getSubmissionsByAssignment(assignment_id));
+    }
+
+    @GetMapping("/{assignment_id}/my-submission")
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<SubmissionResponse> getMySubmission(
+            @PathVariable Integer assignment_id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        Student student = studentRepository.findByUid(currentUser.getUid())
+                .orElseThrow(() -> new ResourceNotFoundException("Student profile not found"));
+        return ResponseEntity.ok(assignmentService.getStudentSubmission(assignment_id, student.getStudentId()));
+    }
+
+    // Alternative grade endpoint - matches frontend api.ts POST /assignments/submissions/{id}/grade
+    @PostMapping("/submissions/{submission_id}/grade")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<SubmissionResponse> gradeSubmissionById(
+            @PathVariable Integer submission_id,
+            @Valid @RequestBody SubmissionGradeRequest request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        Teacher teacher = teacherRepository.findByUid(currentUser.getUid())
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher profile not found"));
+        return ResponseEntity.ok(assignmentService.gradeSubmissionById(submission_id, teacher.getTeacherId(), currentUser.getUid(), request));
+    }
+
+    @PutMapping("/{assignment_id}/submissions/{student_id}/grade")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<SubmissionResponse> gradeSubmission(
             @PathVariable Integer assignment_id,
             @PathVariable Integer student_id,
             @Valid @RequestBody SubmissionGradeRequest request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
 
-        Integer teacherId = null;
-
-        if ("TEACHER".equalsIgnoreCase(currentUser.getRole())) {
-
-            Teacher teacher = teacherRepository
-                    .findByUid(currentUser.getUid())
-                    .orElseThrow(
-                            () -> new ResourceNotFoundException(
-                                    "Teacher profile not found"));
-
-            teacherId = teacher.getTeacherId();
-        }
+        Teacher teacher = teacherRepository.findByUid(currentUser.getUid())
+                .orElseThrow(() -> new ResourceNotFoundException("Teacher profile not found"));
 
         return ResponseEntity.ok(
                 assignmentService.gradeSubmission(
                         assignment_id,
                         student_id,
-                        teacherId,
+                        teacher.getTeacherId(), currentUser.getUid(),
                         request));
     }
 }

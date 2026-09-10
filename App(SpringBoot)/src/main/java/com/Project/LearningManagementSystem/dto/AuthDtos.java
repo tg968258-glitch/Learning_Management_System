@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -127,6 +128,13 @@ public class AuthDtos {
         private String specialization;
         private String qualification;
         private Integer experience;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+    public static class InvitationDetailsResponse {
+        private String email;
+        private LocalDateTime expires_at;
+        private boolean is_valid;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor

@@ -42,8 +42,21 @@ public class StudentService {
     }
 
     @Cacheable(value = "students", key = "'all'")
-    public List<Student> getAllStudents() {
-        return studentRepository.findAll();
+    public List<StudentResponse> getAllStudents() {
+        return studentRepository.findAll().stream().map(s -> {
+            User user = userRepository.findById(s.getUid()).orElse(null);
+            return new StudentResponse(
+                s.getStudentId(),
+                s.getUid(),
+                null,
+                s.getName(),
+                user != null ? user.getEmail() : null,
+                s.getDateOfBirth(),
+                s.getGender(),
+                s.getPhoneNumber(),
+                null
+            );
+        }).toList();
     }
 
     @Transactional

@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fc;
+  --foreground: #172033;
+  --muted: #6d7484;
+  --brand: #6557e8;
+  --brand-soft: #eeecff;
+  --surface: #ffffff;
+  --border: #e8eaf0;
+  --success: #1f9d68;
+  --warning: #de8b18;
+  --danger: #dc4c64;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.soft-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  background: #d9dce6;
+  border-radius: 999px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(24, 32, 51, 0.04);
+}
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  background: var(--brand);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 8px 20px rgba(101, 87, 232, 0.16);
+  transition: 0.18s ease;
+}
+
+.primary-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.96);
+  box-shadow: 0 12px 26px rgba(101, 87, 232, 0.22);
+}
+
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: white;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  transition: 0.18s ease;
+}
+
+.secondary-button:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #d8dce6;
+}
+
+.icon-button {
+  display: inline-grid;
+  height: 2.5rem;
+  width: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: white;
+  color: #64748b;
+  transition: 0.18s ease;
+}
+
+.icon-button:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.form-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: 0.18s ease;
+}
+
+.form-control:focus-within {
+  border-color: #b9b3f8;
+  box-shadow: 0 0 0 4px #f2f0ff;
+}

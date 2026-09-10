@@ -8,7 +8,10 @@ UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB
 
 # Allowed extensions by default (can be customized per use case)
-ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".txt", ".zip", ".ppt", ".pptx"}
+ALLOWED_DOCUMENT_EXTENSIONS = {
+    ".pdf", ".doc", ".docx", ".txt", ".zip", ".ppt", ".pptx",
+    ".mp4", ".webm", ".mov", ".mp3", ".wav", ".m4a",
+}
 
 
 def sanitize_filename(filename: str) -> str:

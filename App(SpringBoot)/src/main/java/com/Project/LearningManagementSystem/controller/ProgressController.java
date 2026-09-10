@@ -10,6 +10,7 @@ import com.Project.LearningManagementSystem.security.UserPrincipal;
 import com.Project.LearningManagementSystem.service.ProgressService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -30,6 +31,15 @@ public class ProgressController {
 
     private final ProgressService progressService;
     private final StudentRepository studentRepository;
+
+    @GetMapping("/my-progress")
+    public ResponseEntity<List<LessonProgressResponse>> getAllMyProgress(
+        @AuthenticationPrincipal UserPrincipal currentUser
+    ) {
+        Student student = studentRepository.findByUid(currentUser.getUid())
+            .orElseThrow(() -> new ResourceNotFoundException("Student profile not found"));
+        return ResponseEntity.ok(progressService.getStudentProgress(student.getStudentId()));
+    }
 
     @GetMapping("/lesson/{lesson_id}")
     public ResponseEntity<LessonProgressResponse> getMyLessonProgress(

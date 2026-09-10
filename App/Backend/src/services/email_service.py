@@ -287,75 +287,26 @@ def send_teacher_invite_email(
     to_email: str,
     invite_token: str,
     invited_by_name: str = "Admin",
-    accept_url_base: str = ""
+    accept_url_base: str = "",
+    expires_in_hours: int = 48,
 ) -> bool:
     """
     Send teacher invitation email.
     """
 
-    if accept_url_base:
-
-        cta = f"""
-        <p style="text-align:center; margin:24px 0;">
-
-            <a
-                href="{accept_url_base}?token={invite_token}"
-                style="
-                    background:#4F46E5;
-                    color:#ffffff;
-                    padding:12px 28px;
-                    border-radius:6px;
-                    text-decoration:none;
-                    font-weight:bold;
-                "
-            >
-                Accept Invitation
-            </a>
-
-        </p>
-
-        <p style="font-size:12px; color:#888888;">
-
-            Or copy this token manually:
-
-            <br>
-
-            <code
-                style="
-                    background:#f4f4f4;
-                    padding:4px 8px;
-                    border-radius:4px;
-                "
-            >
-                {invite_token}
-            </code>
-
-        </p>
-        """
-
-    else:
-
-        cta = f"""
-        <p>
-            Use the following invitation token
-            to complete your registration:
-        </p>
-
-        <div
-            style="
-                font-size:14px;
-                font-weight:bold;
-                background:#EEF2FF;
-                padding:16px;
-                border-radius:8px;
-                word-break:break-all;
-                color:#4F46E5;
-                margin:20px 0;
-            "
-        >
-            {invite_token}
-        </div>
-        """
+    cta = f"""
+    <p>Use this invitation token on the Teacher registration form:</p>
+    <div style="
+        background:#EEF2FF;
+        color:#312E81;
+        padding:14px;
+        border-radius:6px;
+        font-family:monospace;
+        font-size:14px;
+        overflow-wrap:anywhere;
+        text-align:center;
+    ">{invite_token}</div>
+    """
 
     subject = (
         "You're invited to join LMS as a Teacher"
@@ -414,7 +365,7 @@ def send_teacher_invite_email(
                 as a <strong>Teacher</strong>.
 
                 This invitation expires in
-                <strong>48 hours</strong>.
+                <strong>{expires_in_hours} hours</strong>.
             </p>
 
             {cta}

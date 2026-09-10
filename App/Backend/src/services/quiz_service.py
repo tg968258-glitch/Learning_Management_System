@@ -6,7 +6,7 @@ from Backend.src.models.quiz import (
     QuizAttempt,
     QuizQuestion,
 )
-from Backend.src.repositories.lesson_repository import LessonRepository
+from Backend.src.repositories.course_repository import CourseRepository
 from Backend.src.repositories.quiz_repository import QuizRepository
 from Backend.src.repositories.student_repository import StudentRepository
 from Backend.src.utils.logger import logger
@@ -28,15 +28,15 @@ def get_quiz(db: Session, quiz_id: int) -> Quiz | None:
 
 
 def create_quiz(db: Session, quiz_data: dict) -> Quiz:
-    lesson = LessonRepository.get_by_id(db, quiz_data["lesson_id"])
-    if not lesson:
-        raise ValueError("Lesson does not exist")
+    course = CourseRepository.get_by_id(db, quiz_data["course_id"])
+    if not course:
+        raise ValueError("Course does not exist")
 
     if quiz_data["passing_marks"] > quiz_data["max_marks"]:
         raise ValueError("Passing marks cannot exceed maximum marks")
 
     quiz = QuizRepository.create_quiz(db, quiz_data)
-    logger.info(f"Quiz created: {quiz.quiz_id} for lesson {quiz.lesson_id}")
+    logger.info(f"Quiz created: {quiz.quiz_id} for course {quiz.course_id}")
     return quiz
 
 

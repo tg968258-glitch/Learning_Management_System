@@ -24,10 +24,16 @@ class Quiz(Base):
         autoincrement=True
     )
 
-    lesson_id: Mapped[int] = mapped_column(
+    course_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("courses.course_id"),
+        nullable=False
+    )
+
+    lesson_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("lessons.lesson_id"),
-        nullable=False
+        nullable=True
     )
 
     title: Mapped[str] = mapped_column(

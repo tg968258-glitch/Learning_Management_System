@@ -124,6 +124,12 @@ def submit_assignment(
         raise ValueError("Submission must include text or an uploaded file")
 
     now = datetime.utcnow()
+    existing_submission = AssignmentRepository.get_submission(db, assignment_id, student_id)
+    if existing_submission and existing_submission.status == "graded":
+        raise ValueError("A graded submission cannot be resubmitted")
+    if existing_submission and assignment.due_date and now > assignment.due_date:
+        raise ValueError("The resubmission deadline has passed")
+
     status = "submitted"
     if assignment.due_date and now > assignment.due_date:
         status = "late"

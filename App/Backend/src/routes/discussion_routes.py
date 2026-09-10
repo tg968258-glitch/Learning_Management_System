@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user
+from Backend.src.core.course_access import require_course_access
 from Backend.src.models.student import Student
 from Backend.src.models.teacher import Teacher
 from Backend.src.models.user import User
@@ -64,6 +65,7 @@ def list_discussions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Course ID must be positive"
         )
+    require_course_access(db, current_user, course_id)
     discussions = get_course_discussions(db, course_id, lesson_id=lesson_id)
     return [_build_discussion_response(db, d) for d in discussions]
 

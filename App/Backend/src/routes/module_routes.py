@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
 from Backend.src.core.cache import CACHE_TTL, redis_client
+from Backend.src.core.course_access import require_course_access, require_module_access
 from Backend.src.models.user import User
 from Backend.src.schemas.modules import ModuleCreate, ModuleResponse, ModuleUpdate
 from Backend.src.services.module_service import (
@@ -44,8 +45,6 @@ def _build_module_response(m) -> dict:
         "description": m.description,
         "is_published": m.is_published,
         "published_by": m.published_by,
-        "created_at": m.created_at,
-        "updated_at": m.updated_at,
     }
 
 
@@ -61,6 +60,7 @@ def list_course_modules(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Course ID must be positive"
         )
+    require_course_access(db, current_user, course_id)
     # Students should only see published modules
     if current_user.role == "student":
         published_only = True
@@ -96,6 +96,8 @@ def get_single_module(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Module ID must be positive"
         )
+
+    require_module_access(db, current_user, module_id)
 
     cache_key = f"modules:{module_id}"
 

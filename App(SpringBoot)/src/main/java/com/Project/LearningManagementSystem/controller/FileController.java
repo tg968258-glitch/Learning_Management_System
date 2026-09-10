@@ -73,12 +73,13 @@ public class FileController {
         @Parameter(
             description = "Relative file path as stored in DB — must start with /uploads/, "
                 + "e.g. `/uploads/resources/abc123_lecture.pdf`",
-            example = "/uploads/resources/abc123_lecture.pdf",
-            required = true
+            example = "/uploads/resources/abc123_lecture.pdf"
         )
-        @RequestParam("path") String relativePath
+        @RequestParam(value = "path", required = false) String path,
+        @RequestParam(value = "resource_url", required = false) String resourceUrl
     ) {
-        return serveFile(relativePath, false);
+        String target = (path != null && !path.isBlank()) ? path : resourceUrl;
+        return serveFile(target, false);
     }
 
     // ------------------------------------------------------------------ //
@@ -104,12 +105,13 @@ public class FileController {
         @Parameter(
             description = "Relative file path as stored in DB — must start with /uploads/, "
                 + "e.g. `/uploads/resources/abc123_lecture.pdf`",
-            example = "/uploads/resources/abc123_lecture.pdf",
-            required = true
+            example = "/uploads/resources/abc123_lecture.pdf"
         )
-        @RequestParam("path") String relativePath
+        @RequestParam(value = "path", required = false) String path,
+        @RequestParam(value = "resource_url", required = false) String resourceUrl
     ) {
-        return serveFile(relativePath, true);
+        String target = (path != null && !path.isBlank()) ? path : resourceUrl;
+        return serveFile(target, true);
     }
 
     // ------------------------------------------------------------------ //

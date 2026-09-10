@@ -5,8 +5,15 @@ from sqlalchemy.orm import Session
 
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
+from Backend.src.core.course_access import accessible_course_ids, require_course_access
 from Backend.src.core.cache import CACHE_TTL, redis_client
 from Backend.src.models.user import User
+from Backend.src.models.course import Course
+from Backend.src.models.enrollment import Enrollment
+from Backend.src.models.lesson import Lesson
+from Backend.src.models.module import Module
+from Backend.src.models.student import Student
+from Backend.src.models.teacher import Teacher
 from Backend.src.schemas.courses import (
     CourseAssignTeachers,
     CourseCreate,
@@ -22,8 +29,10 @@ from Backend.src.services.course_service import (
     get_course_teachers,
     get_teacher_courses,
     publish_course,
+    remove_teacher_from_course,
     update_course,
 )
+from Backend.src.services.progress_service import get_course_progress_summary
 
 
 router = APIRouter(
@@ -60,18 +69,69 @@ def _clear_course_list_cache():
     )
 
 
+def _clear_teacher_assignment_cache():
+    """Teacher assignment status is derived from course course-teacher rows."""
+    for pattern in ("teachers:*", "teacherProfile:*"):
+        for key in redis_client.scan_iter(match=pattern):
+            redis_client.delete(key)
+
+
 # =========================================================
 # BUILD COURSE RESPONSE
 # =========================================================
 
-def _build_course_response(db: Session, course) -> dict:
+def _build_course_response(
+    db: Session,
+    course: Course,
+    current_user: User | None = None,
+    include_modules: bool = False,
+) -> dict:
 
     teachers = get_course_teachers(
         db,
         course.course_id
     )
 
-    return {
+    modules = (
+        db.query(Module)
+        .filter(Module.course_id == course.course_id)
+        .order_by(Module.module_id)
+        .all()
+    )
+    lessons = (
+        db.query(Lesson)
+        .join(Module, Module.module_id == Lesson.module_id)
+        .filter(Module.course_id == course.course_id)
+        .order_by(Lesson.module_id, Lesson.lesson_id)
+        .all()
+    )
+    lessons_by_module: dict[int, list[Lesson]] = {}
+    for lesson in lessons:
+        lessons_by_module.setdefault(lesson.module_id, []).append(lesson)
+
+    enrollment_count = (
+        db.query(Enrollment)
+        .filter(Enrollment.course_id == course.course_id, Enrollment.status == "active")
+        .count()
+    )
+
+    is_enrolled = False
+    completed_lessons = None
+    overall_progress = None
+    if current_user and current_user.role == "student":
+        student = db.query(Student).filter(Student.uid == current_user.uid).first()
+        if student:
+            is_enrolled = db.query(Enrollment).filter(
+                Enrollment.student_id == student.student_id,
+                Enrollment.course_id == course.course_id,
+                Enrollment.status == "active",
+            ).first() is not None
+        if student and is_enrolled:
+            summary = get_course_progress_summary(db, student.student_id, course.course_id)
+            completed_lessons = summary["completed_lessons"]
+            overall_progress = summary["overall_progress_percentage"]
+
+    response = {
         "course_id": course.course_id,
         "course_name": course.course_name,
         "description": course.description,
@@ -90,7 +150,36 @@ def _build_course_response(db: Session, course) -> dict:
             }
             for t in teachers
         ],
+        "module_count": len(modules),
+        "lesson_count": len(lessons),
+        "enrollment_count": enrollment_count,
+        "is_enrolled": is_enrolled,
+        "completed_lessons": completed_lessons,
+        "overall_progress_percentage": overall_progress,
     }
+
+    if include_modules:
+        response["modules"] = [
+            {
+                "module_id": module.module_id,
+                "course_id": module.course_id,
+                "module_name": module.module_name,
+                "description": module.description,
+                "is_published": module.is_published,
+                "lessons": [
+                    {
+                        "lesson_id": lesson.lesson_id,
+                        "module_id": lesson.module_id,
+                        "lesson_title": lesson.lesson_title,
+                        "is_published": lesson.is_published,
+                    }
+                    for lesson in lessons_by_module.get(module.module_id, [])
+                ],
+            }
+            for module in modules
+        ]
+
+    return response
 
 
 # =========================================================
@@ -114,6 +203,20 @@ def list_courses(
     current_user: User = Depends(get_current_user)
 ):
 
+    # Students browse the complete published catalog before enrolling.
+    if current_user.role == "student":
+        courses = get_all_courses(db, status="active", category=category)
+        return [_build_course_response(db, course, current_user) for course in courses]
+
+    allowed_course_ids = accessible_course_ids(db, current_user)
+    if allowed_course_ids is not None:
+        courses = get_all_courses(db, status=status, category=category)
+        return [
+            _build_course_response(db, course, current_user)
+            for course in courses
+            if course.course_id in allowed_course_ids
+        ]
+
     # -----------------------------------------------------
     # Create cache key using filters
     # -----------------------------------------------------
@@ -122,7 +225,7 @@ def list_courses(
     category_key = category or "all"
 
     cache_key = (
-        f"courses:{status_key}:{category_key}"
+        f"courses:v3:{status_key}:{category_key}"
     )
 
     # -----------------------------------------------------
@@ -160,7 +263,8 @@ def list_courses(
     response = [
         _build_course_response(
             db,
-            course
+            course,
+            current_user,
         )
         for course in courses
     ]
@@ -182,6 +286,37 @@ def list_courses(
         f"CACHE CREATED: {cache_key}"
     )
 
+    return response
+
+
+# =========================================================
+# GET COURSES FOR THE CURRENT STUDENT OR TEACHER
+# Keep this static route before /{course_id}.
+# =========================================================
+
+@router.get(
+    "/my-courses",
+    response_model=list[CourseResponse]
+)
+def get_my_courses(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("student", "teacher"))
+):
+
+    allowed_course_ids = accessible_course_ids(db, current_user) or set()
+    if not allowed_course_ids:
+        return []
+
+    courses = (
+        db.query(Course)
+        .filter(Course.course_id.in_(allowed_course_ids))
+        .order_by(Course.course_id)
+        .all()
+    )
+    response = []
+    for course in courses:
+        course_data = _build_course_response(db, course, current_user)
+        response.append(course_data)
     return response
 
 
@@ -208,33 +343,23 @@ def get_course_by_id(
             detail="Course ID must be positive"
         )
 
-    cache_key = f"course:{course_id}"
-
-    # -----------------------------------------------------
-    # STEP 1: Check Valkey
-    # -----------------------------------------------------
-
-    cached_course = redis_client.get(
-        cache_key
-    )
-
-    if cached_course:
-
-        print(
-            f"CACHE HIT: {cache_key}"
+    # Students may view published metadata before enrolling. Course content
+    # remains protected by the module/lesson/etc. access checks.
+    if current_user.role == "student":
+        course = get_course(db, course_id)
+        if not course:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+        allowed_course_ids = accessible_course_ids(db, current_user) or set()
+        if course.status != "active":
+            require_course_access(db, current_user, course_id)
+        return _build_course_response(
+            db,
+            course,
+            current_user,
+            include_modules=course_id in allowed_course_ids,
         )
 
-        return json.loads(
-            cached_course
-        )
-
-    print(
-        f"CACHE MISS: {cache_key}"
-    )
-
-    # -----------------------------------------------------
-    # STEP 2: Fetch from PostgreSQL
-    # -----------------------------------------------------
+    require_course_access(db, current_user, course_id)
 
     course = get_course(
         db,
@@ -250,26 +375,10 @@ def get_course_by_id(
 
     response = _build_course_response(
         db,
-        course
+        course,
+        current_user,
+        include_modules=True,
     )
-
-    # -----------------------------------------------------
-    # STEP 3: Store in Valkey
-    # -----------------------------------------------------
-
-    redis_client.setex(
-        cache_key,
-        CACHE_TTL,
-        json.dumps(
-            response,
-            default=str
-        )
-    )
-
-    print(
-        f"CACHE CREATED: {cache_key}"
-    )
-
     return response
 
 
@@ -489,6 +598,7 @@ def assign_teachers(
         # -------------------------------------------------
 
         _clear_course_list_cache()
+        _clear_teacher_assignment_cache()
 
         print(
             f"CACHE DELETED AFTER "
@@ -514,6 +624,25 @@ def assign_teachers(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         ) from e
+
+
+@router.delete("/{course_id}/teachers/{teacher_id}")
+def remove_assigned_teacher(
+    course_id: int,
+    teacher_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin"))
+):
+    try:
+        removed = remove_teacher_from_course(db, course_id, teacher_id)
+        if not removed:
+            raise HTTPException(status_code=404, detail="Teacher is not assigned to this course")
+        redis_client.delete(f"course:{course_id}")
+        _clear_course_list_cache()
+        _clear_teacher_assignment_cache()
+        return {"message": "Teacher removed from course successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # =========================================================

@@ -9,11 +9,22 @@ def get_all_teachers(db: Session) -> list[Teacher]:
     return TeacherRepository.get_all(db)
 
 
+def get_teacher_dashboard_stats(db: Session, uid: str) -> dict:
+    return TeacherRepository.get_dashboard_stats(db, uid)
+
+
 def get_teacher(
     db: Session,
     teacher_id: int
 ) -> Teacher | None:
     return TeacherRepository.get_by_id(db, teacher_id)
+
+
+def get_teacher_by_uid(
+    db: Session,
+    uid: str
+) -> Teacher | None:
+    return TeacherRepository.get_by_uid(db, uid)
 
 
 def create_teacher(

@@ -12,6 +12,24 @@ from Backend.src.models.user import User
 
 class AdminRepository:
     @staticmethod
+    def get_dashboard_stats(db: Session) -> dict:
+        """Return only the aggregate values displayed by the admin dashboard."""
+        row = db.query(
+            db.query(func.count(Course.course_id)).scalar_subquery().label("total_courses"),
+            db.query(func.count(Student.student_id)).scalar_subquery().label("total_students"),
+            db.query(func.count(Teacher.teacher_id))
+            .join(User, User.uid == Teacher.uid)
+            .filter(User.is_active.is_(True))
+            .scalar_subquery()
+            .label("active_instructors"),
+            db.query(func.count(Enrollment.enrollment_id))
+            .filter(Enrollment.status == "active")
+            .scalar_subquery()
+            .label("active_enrollments"),
+        ).one()
+        return {key: int(value or 0) for key, value in row._mapping.items()}
+
+    @staticmethod
     def get_dashboard_metrics(db: Session) -> dict:
         total_users = db.query(User).count()
         total_students = db.query(Student).count()

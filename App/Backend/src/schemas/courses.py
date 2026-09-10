@@ -116,6 +116,17 @@ class CourseUpdate(BaseModel):
 class CourseAssignTeachers(BaseModel):
     teacher_ids: list[int]
 
+    @field_validator("teacher_ids")
+    @classmethod
+    def validate_teacher_ids(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("Select at least one teacher")
+        if any(teacher_id <= 0 for teacher_id in value):
+            raise ValueError("Teacher IDs must be positive integers")
+        if len(value) != len(set(value)):
+            raise ValueError("Teacher IDs must be unique")
+        return value
+
 
 class CourseTeacherInfo(BaseModel):
     teacher_id: int
@@ -123,6 +134,22 @@ class CourseTeacherInfo(BaseModel):
     specialization: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CourseLessonInfo(BaseModel):
+    lesson_id: int
+    module_id: int
+    lesson_title: str
+    is_published: bool
+
+
+class CourseModuleInfo(BaseModel):
+    module_id: int
+    course_id: int
+    module_name: str
+    description: str | None = None
+    is_published: bool
+    lessons: list[CourseLessonInfo] = []
 
 
 class CourseResponse(BaseModel):
@@ -134,5 +161,12 @@ class CourseResponse(BaseModel):
     category: str | None = None
     created_by: str | None = None
     teachers: list[CourseTeacherInfo] = []
+    modules: list[CourseModuleInfo] = []
+    module_count: int | None = None
+    lesson_count: int | None = None
+    enrollment_count: int | None = None
+    is_enrolled: bool = False
+    completed_lessons: int | None = None
+    overall_progress_percentage: float | None = None
 
     model_config = ConfigDict(from_attributes=True)

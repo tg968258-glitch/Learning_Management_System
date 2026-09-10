@@ -45,6 +45,11 @@ public class QuizController {
         return ResponseEntity.ok(quizService.getQuizzesByCourse(course_id));
     }
 
+    @GetMapping("/lesson/{lesson_id}")
+    public ResponseEntity<List<QuizResponse>> listQuizzesByLesson(@PathVariable Integer lesson_id) {
+        return ResponseEntity.ok(quizService.getQuizzesByLesson(lesson_id));
+    }
+
     @GetMapping("/{quiz_id}")
     public ResponseEntity<QuizDetailResponse> getQuiz(
         @PathVariable Integer quiz_id,
@@ -55,34 +60,38 @@ public class QuizController {
     }
 
     @PostMapping("/")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ResponseEntity<QuizResponse> createQuiz(@Valid @RequestBody QuizCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(quizService.createQuiz(request));
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<QuizResponse> createQuiz(@Valid @RequestBody QuizCreateRequest request,
+        @AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(quizService.createQuiz(request, currentUser.getUid()));
     }
 
     @PutMapping("/{quiz_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<QuizResponse> updateQuiz(
         @PathVariable Integer quiz_id,
-        @Valid @RequestBody QuizUpdateRequest request
+        @Valid @RequestBody QuizUpdateRequest request,
+        @AuthenticationPrincipal UserPrincipal currentUser
     ) {
-        return ResponseEntity.ok(quizService.updateQuiz(quiz_id, request));
+        return ResponseEntity.ok(quizService.updateQuiz(quiz_id, request, currentUser.getUid()));
     }
 
     @DeleteMapping("/{quiz_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ResponseEntity<Map<String, String>> deleteQuiz(@PathVariable Integer quiz_id) {
-        quizService.deleteQuiz(quiz_id);
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<Map<String, String>> deleteQuiz(@PathVariable Integer quiz_id,
+        @AuthenticationPrincipal UserPrincipal currentUser) {
+        quizService.deleteQuiz(quiz_id, currentUser.getUid());
         return ResponseEntity.ok(Map.of("message", "Quiz deleted successfully"));
     }
 
     @PostMapping("/{quiz_id}/questions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<QuestionResponse> addQuestion(
         @PathVariable Integer quiz_id,
-        @Valid @RequestBody QuestionCreateRequest request
+        @Valid @RequestBody QuestionCreateRequest request,
+        @AuthenticationPrincipal UserPrincipal currentUser
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(quizService.addQuestion(quiz_id, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(quizService.addQuestion(quiz_id, request, currentUser.getUid()));
     }
 
     @PostMapping("/{quiz_id}/start")

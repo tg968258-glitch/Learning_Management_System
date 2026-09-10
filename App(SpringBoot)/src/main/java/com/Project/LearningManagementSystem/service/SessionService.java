@@ -24,6 +24,7 @@ public class SessionService {
     private final ClassSessionRepository sessionRepository;
     private final CourseRepository courseRepository;
     private final TeacherRepository teacherRepository;
+    private final CourseAccessService courseAccessService;
 
     public ClassSessionResponse toResponse(ClassSession s) {
         String teacherName = s.getTeacherId() != null ?
@@ -44,21 +45,35 @@ public class SessionService {
         );
     }
 
+    public List<ClassSessionResponse> getAllSessions(Integer courseId) {
+        if (courseId != null) {
+            return getSessionsByCourse(courseId);
+        }
+        return sessionRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
     @Cacheable(value = "sessions", key = "#courseId")
     public List<ClassSessionResponse> getSessionsByCourse(Integer courseId) {
         return sessionRepository.findByCourseId(courseId).stream().map(this::toResponse).toList();
     }
 
+    public ClassSessionResponse getSessionById(Integer sessionId) {
+        ClassSession s = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+        return toResponse(s);
+    }
+
     @Transactional
     @CacheEvict(value = "sessions", allEntries = true)
-    public ClassSessionResponse createSession(ClassSessionCreateRequest request) {
+    public ClassSessionResponse createSession(ClassSessionCreateRequest request, String teacherUid) {
         if (!courseRepository.existsById(request.getCourse_id())) {
             throw new ResourceNotFoundException("Course not found: " + request.getCourse_id());
         }
+        Integer teacherId = courseAccessService.requireAssignedTeacher(teacherUid, request.getCourse_id());
 
         ClassSession s = new ClassSession();
         s.setCourseId(request.getCourse_id());
-        s.setTeacherId(request.getTeacher_id());
+        s.setTeacherId(teacherId);
         s.setSessionDate(request.getSession_date());
         s.setStartTime(request.getStart_time());
         s.setEndTime(request.getEnd_time());
@@ -71,13 +86,11 @@ public class SessionService {
 
     @Transactional
     @CacheEvict(value = "sessions", allEntries = true)
-    public ClassSessionResponse updateSession(Integer sessionId, ClassSessionUpdateRequest request) {
+    public ClassSessionResponse updateSession(Integer sessionId, ClassSessionUpdateRequest request, String teacherUid) {
         ClassSession s = sessionRepository.findById(sessionId)
             .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+        courseAccessService.requireAssignedTeacher(teacherUid, s.getCourseId());
 
-        if (request.getTeacher_id() != null) {
-            s.setTeacherId(request.getTeacher_id());
-        }
         if (request.getSession_date() != null) {
             s.setSessionDate(request.getSession_date());
         }
@@ -100,10 +113,10 @@ public class SessionService {
 
     @Transactional
     @CacheEvict(value = "sessions", allEntries = true)
-    public void deleteSession(Integer sessionId) {
-        if (!sessionRepository.existsById(sessionId)) {
-            throw new ResourceNotFoundException("Session not found: " + sessionId);
-        }
+    public void deleteSession(Integer sessionId, String teacherUid) {
+        ClassSession session = sessionRepository.findById(sessionId)
+            .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+        courseAccessService.requireAssignedTeacher(teacherUid, session.getCourseId());
         sessionRepository.deleteById(sessionId);
     }
 }

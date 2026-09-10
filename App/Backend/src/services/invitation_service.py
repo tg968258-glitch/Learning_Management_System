@@ -59,11 +59,15 @@ def create_teacher_invitation(
         invited_by_uid=invited_by_uid
     )
 
+    # Invitations always direct recipients to the registration page.  The
+    # token stays server-side as a hash and is never returned by this API.
+    registration_url = accept_url_base or (os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/") + "/login")
     email_sent = send_teacher_invite_email(
         to_email=email,
         invite_token=token,
         invited_by_name=inviter_name,
-        accept_url_base=accept_url_base
+        accept_url_base=registration_url,
+        expires_in_hours=INVITE_EXPIRY_HOURS,
     )
 
     if not email_sent:
@@ -85,17 +89,45 @@ def create_teacher_invitation(
     }
 
 
+def get_invitation_details(
+    db: Session,
+    token: str
+) -> dict:
+    token = token.strip()
+    if not token:
+        raise ValueError("Invitation token is required.")
+
+    token_hash = _hash_token(token)
+    invitation = TeacherRepository.get_active_invitation_by_token_hash(db, token_hash)
+
+    if not invitation:
+        raise ValueError("Invalid or already used invitation token.")
+
+    if invitation.expires_at < datetime.utcnow():
+        raise ValueError(
+            "This invitation has expired. "
+            "Please ask an admin to send a new one."
+        )
+
+    return {
+        "email": invitation.email,
+        "expires_at": invitation.expires_at.isoformat(),
+        "is_valid": True,
+    }
+
+
 def accept_teacher_invitation(
     db: Session,
     token: str,
-    username: str,
-    password: str,
-    name: str,
+    username: str | None = None,
+    password: str = "",
+    name: str = "",
     phone_number: str | None = None,
     specialization: str | None = None,
     qualification: str | None = None,
     experience: int | None = None,
 ) -> dict:
+    TeacherRepository.expire_pending_invitations(db)
     token_hash = _hash_token(token)
     invitation = TeacherRepository.get_active_invitation_by_token_hash(db, token_hash)
 
@@ -111,8 +143,16 @@ def accept_teacher_invitation(
     if UserRepository.get_by_email(db, invitation.email):
         raise ValueError("A user with this email already exists. Please contact admin.")
 
-    if UserRepository.get_by_username(db, username):
-        raise ValueError("Username already taken. Please choose another.")
+    if not username:
+        base_username = invitation.email.split("@")[0].lower()
+        username = base_username
+        counter = 1
+        while UserRepository.get_by_username(db, username):
+            username = f"{base_username}{counter}"
+            counter += 1
+    else:
+        if UserRepository.get_by_username(db, username):
+            raise ValueError("Username already taken. Please choose another.")
 
     uid = generate_uid(db)
 

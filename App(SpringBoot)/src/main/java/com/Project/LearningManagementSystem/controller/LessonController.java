@@ -83,7 +83,7 @@ public class LessonController {
         return ResponseEntity.status(HttpStatus.CREATED).body(lessonService.addResource(request));
     }
 
-    @PostMapping(value = "/{lesson_id}/resources/upload-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = {"/{lesson_id}/resources/upload", "/{lesson_id}/resources/upload-pdf"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ResponseEntity<ResourceResponse> uploadPdfResource(
         @PathVariable Integer lesson_id,
@@ -94,5 +94,37 @@ public class LessonController {
         String fileUrl = fileUploadUtil.saveUploadedFile(file, "resources");
         ResourceCreateRequest req = new ResourceCreateRequest(lesson_id, resourceName, resourceType, fileUrl);
         return ResponseEntity.status(HttpStatus.CREATED).body(lessonService.addResource(req));
+    }
+
+    @PutMapping("/contents/{content_id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<LessonContentResponse> updateContent(
+        @PathVariable Integer content_id,
+        @RequestBody com.Project.LearningManagementSystem.dto.LessonDtos.LessonContentUpdateRequest request
+    ) {
+        return ResponseEntity.ok(lessonService.updateLessonContent(content_id, request));
+    }
+
+    @DeleteMapping("/contents/{content_id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<Map<String, String>> removeContent(@PathVariable Integer content_id) {
+        lessonService.deleteLessonContent(content_id);
+        return ResponseEntity.ok(Map.of("message", "Lesson content deleted successfully"));
+    }
+
+    @PutMapping("/resources/{resource_id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<ResourceResponse> updateResource(
+        @PathVariable Integer resource_id,
+        @RequestBody com.Project.LearningManagementSystem.dto.LessonDtos.ResourceUpdateRequest request
+    ) {
+        return ResponseEntity.ok(lessonService.updateResource(resource_id, request));
+    }
+
+    @DeleteMapping("/resources/{resource_id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<Map<String, String>> removeResource(@PathVariable Integer resource_id) {
+        lessonService.deleteResource(resource_id);
+        return ResponseEntity.ok(Map.of("message", "Resource deleted successfully"));
     }
 }

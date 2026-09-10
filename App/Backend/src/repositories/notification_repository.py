@@ -1,10 +1,20 @@
 from datetime import datetime
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from Backend.src.models.notification import Notification
 
 
 class NotificationRepository:
+    @staticmethod
+    def count_unread(db: Session, uid: str) -> int:
+        return int(
+            db.query(func.count(Notification.notification_id))
+            .filter(Notification.uid == uid, Notification.is_read.is_(False))
+            .scalar()
+            or 0
+        )
+
     @staticmethod
     def get_by_id(db: Session, notification_id: int) -> Notification | None:
         return db.query(Notification).filter(Notification.notification_id == notification_id).first()

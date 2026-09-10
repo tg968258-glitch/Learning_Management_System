@@ -1,4 +1,5 @@
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from Backend.src.models.enrollment import Enrollment
@@ -50,7 +51,11 @@ class EnrollmentRepository:
             enrollment_date=datetime.utcnow()
         )
         db.add(enrollment)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise ValueError("Student is already enrolled in this course") from exc
         db.refresh(enrollment)
         return enrollment
 

@@ -1,10 +1,12 @@
 import json
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from Backend.database import get_db
 from Backend.src.core.auth_dependency import get_current_user, require_roles
+from Backend.src.core.course_access import require_lesson_access, require_module_access
 from Backend.src.core.cache import CACHE_TTL, redis_client
 from Backend.src.models.user import User
 from Backend.src.utils.file_upload import save_uploaded_file
@@ -79,6 +81,13 @@ def _build_content_response(c) -> dict:
     }
 
 
+def _resource_is_available(resource_url: str) -> bool:
+    if not resource_url.startswith("/uploads/"):
+        return True
+    local_path = Path(__file__).resolve().parents[3] / resource_url.lstrip("/")
+    return local_path.is_file()
+
+
 def _build_resource_response(r) -> dict:
     return {
         "resource_id": r.resource_id,
@@ -86,6 +95,7 @@ def _build_resource_response(r) -> dict:
         "resource_name": r.resource_name,
         "resource_type": r.resource_type,
         "resource_url": r.resource_url,
+        "is_available": _resource_is_available(r.resource_url),
         "created_at": r.created_at,
     }
 
@@ -106,6 +116,7 @@ def list_module_lessons(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Module ID must be positive"
         )
+    require_module_access(db, current_user, module_id)
     if current_user.role == "student":
         published_only = True
 
@@ -140,6 +151,7 @@ def get_single_lesson_details(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Lesson ID must be positive"
         )
+    require_lesson_access(db, current_user, lesson_id)
 
     cache_key = f"lesson:{lesson_id}"
 
@@ -147,6 +159,8 @@ def get_single_lesson_details(
     if cached:
         print(f"CACHE HIT: {cache_key}")
         lesson_dict = json.loads(cached)
+        for resource in lesson_dict.get("resources", []):
+            resource["is_available"] = _resource_is_available(resource["resource_url"])
         if current_user.role == "student" and not lesson_dict.get("is_published"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -329,12 +343,13 @@ def add_resource_to_lesson(
         ) from e
 
 
-@router.post("/{lesson_id}/resources/upload-pdf", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
-async def upload_lesson_pdf_resource(
+@router.post("/{lesson_id}/resources/upload", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{lesson_id}/resources/upload-pdf", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+async def upload_lesson_resource(
     lesson_id: int,
     resource_name: str = Form(..., description="Display title for the resource"),
     resource_type: str = Form("pdf", description="Resource type (e.g. pdf, notes, slides)"),
-    file: UploadFile = File(..., description="PDF document or presentation"),
+    file: UploadFile = File(..., description="Lesson document or presentation"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "teacher"))
 ):
@@ -368,6 +383,29 @@ def update_existing_resource(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Resource not found"
         )
+    _clear_lessons_cache()
+    return _build_resource_response(updated)
+
+
+@router.put("/resources/{resource_id}/file", response_model=ResourceResponse)
+async def replace_resource_file(
+    resource_id: int,
+    file: UploadFile = File(...),
+    resource_name: str | None = Form(None),
+    resource_type: str | None = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "teacher"))
+):
+    existing = update_resource(db, resource_id, {})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    file_url = await save_uploaded_file(file, subfolder="resources")
+    updated = update_resource(db, resource_id, {
+        "resource_url": file_url,
+        "resource_name": resource_name or existing.resource_name,
+        "resource_type": resource_type or existing.resource_type,
+    })
     _clear_lessons_cache()
     return _build_resource_response(updated)
 

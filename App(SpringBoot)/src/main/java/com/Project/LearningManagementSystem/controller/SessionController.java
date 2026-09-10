@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.Project.LearningManagementSystem.security.UserPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.web.bind.annotation.RequestParam;
+
 @RestController
 @RequestMapping("/sessions")
 @Tag(name = "Class Sessions")
@@ -29,30 +33,45 @@ public class SessionController {
 
     private final SessionService sessionService;
 
+    @GetMapping("/")
+    public ResponseEntity<List<ClassSessionResponse>> listAllSessions(
+        @RequestParam(required = false) Integer course_id
+    ) {
+        return ResponseEntity.ok(sessionService.getAllSessions(course_id));
+    }
+
     @GetMapping("/course/{course_id}")
     public ResponseEntity<List<ClassSessionResponse>> listSessions(@PathVariable Integer course_id) {
         return ResponseEntity.ok(sessionService.getSessionsByCourse(course_id));
     }
 
+    @GetMapping("/{session_id}")
+    public ResponseEntity<ClassSessionResponse> getSingleSession(@PathVariable Integer session_id) {
+        return ResponseEntity.ok(sessionService.getSessionById(session_id));
+    }
+
     @PostMapping("/")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ResponseEntity<ClassSessionResponse> createSession(@Valid @RequestBody ClassSessionCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(sessionService.createSession(request));
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ClassSessionResponse> createSession(@Valid @RequestBody ClassSessionCreateRequest request,
+        @AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(sessionService.createSession(request, currentUser.getUid()));
     }
 
     @PutMapping("/{session_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<ClassSessionResponse> updateSession(
         @PathVariable Integer session_id,
-        @Valid @RequestBody ClassSessionUpdateRequest request
+        @Valid @RequestBody ClassSessionUpdateRequest request,
+        @AuthenticationPrincipal UserPrincipal currentUser
     ) {
-        return ResponseEntity.ok(sessionService.updateSession(session_id, request));
+        return ResponseEntity.ok(sessionService.updateSession(session_id, request, currentUser.getUid()));
     }
 
     @DeleteMapping("/{session_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ResponseEntity<Map<String, String>> deleteSession(@PathVariable Integer session_id) {
-        sessionService.deleteSession(session_id);
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<Map<String, String>> deleteSession(@PathVariable Integer session_id,
+        @AuthenticationPrincipal UserPrincipal currentUser) {
+        sessionService.deleteSession(session_id, currentUser.getUid());
         return ResponseEntity.ok(Map.of("message", "Session deleted successfully"));
     }
 }

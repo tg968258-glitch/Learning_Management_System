@@ -150,6 +150,12 @@ def test_complete_live_lms_workflow():
     enroll_id = enroll_res.json()["enrollment_id"]
     print(f" [PASS] 10. API: Student Enrolled in Course -> Enrollment ID: {enroll_id}")
 
+    duplicate_res = client.post("/enrollments/", json=enroll_payload, headers=student_headers)
+    assert duplicate_res.status_code == 409, f"Duplicate enrollment was not rejected: {duplicate_res.text}"
+
+    admin_enroll_res = client.post("/enrollments/", json=enroll_payload, headers=admin_headers)
+    assert admin_enroll_res.status_code == 403, f"Admin manual enrollment was not rejected: {admin_enroll_res.text}"
+
     # Verify Enrollment in PostgreSQL
     db_enrollment = db.query(Enrollment).filter(Enrollment.enrollment_id == enroll_id).first()
     assert db_enrollment is not None

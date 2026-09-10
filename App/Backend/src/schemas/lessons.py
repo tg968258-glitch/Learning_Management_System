@@ -44,11 +44,32 @@ class LessonContentBase(BaseModel):
 class LessonContentCreate(LessonContentBase):
     lesson_id: int
 
+    @field_validator("lesson_id")
+    @classmethod
+    def validate_lesson_id(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Lesson ID must be positive")
+        return value
+
 
 class LessonContentUpdate(BaseModel):
     content_type: str | None = None
     content: str | None = None
     sequence_number: int | None = None
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str | None) -> str | None:
+        if value is not None and is_empty(value):
+            raise ValueError("Content cannot be empty")
+        return value
+
+    @field_validator("sequence_number")
+    @classmethod
+    def validate_sequence(cls, value: int | None) -> int | None:
+        if value is not None and value < 1:
+            raise ValueError("Sequence number must be at least 1")
+        return value
 
     @field_validator("content_type")
     @classmethod
@@ -106,6 +127,13 @@ class ResourceBase(BaseModel):
 class ResourceCreate(ResourceBase):
     lesson_id: int
 
+    @field_validator("lesson_id")
+    @classmethod
+    def validate_lesson_id(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Lesson ID must be positive")
+        return value
+
 
 class ResourceUpdate(BaseModel):
     resource_name: str | None = None
@@ -119,6 +147,7 @@ class ResourceResponse(BaseModel):
     resource_name: str
     resource_type: str | None = None
     resource_url: str
+    is_available: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

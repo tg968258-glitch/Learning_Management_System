@@ -81,6 +81,17 @@ def assign_teachers_to_course(
     return assigned_teachers
 
 
+def remove_teacher_from_course(db: Session, course_id: int, teacher_id: int) -> bool:
+    if not CourseRepository.get_by_id(db, course_id):
+        raise ValueError("Course not found")
+    if not TeacherRepository.get_by_id(db, teacher_id):
+        raise ValueError("Teacher not found")
+    removed = CourseRepository.remove_course_teacher(db, course_id, teacher_id)
+    if removed:
+        logger.info(f"Teacher {teacher_id} removed from Course {course_id}")
+    return removed
+
+
 def publish_course(
     db: Session,
     course_id: int,

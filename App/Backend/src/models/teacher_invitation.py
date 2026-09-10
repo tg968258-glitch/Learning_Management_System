@@ -47,6 +47,12 @@ class TeacherInvitation(Base):
         default=False
     )
 
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="Pending"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow

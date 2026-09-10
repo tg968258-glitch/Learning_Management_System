@@ -41,9 +41,22 @@ public class CourseController {
         return ResponseEntity.ok(courseService.getAllCourses());
     }
 
+    @GetMapping("/my-courses")
+    @PreAuthorize("hasAnyRole('STUDENT', 'TEACHER')")
+    public ResponseEntity<List<CourseResponse>> getMyCourses(
+        @AuthenticationPrincipal UserPrincipal currentUser
+    ) {
+        return ResponseEntity.ok(courseService.getMyCourses(currentUser.getUid(), currentUser.getRole()));
+    }
+
     @GetMapping("/{course_id}")
-    public ResponseEntity<CourseResponse> getCourseById(@PathVariable Integer course_id) {
-        return ResponseEntity.ok(courseService.getCourseById(course_id));
+    public ResponseEntity<CourseResponse> getCourseById(
+        @PathVariable Integer course_id,
+        @AuthenticationPrincipal UserPrincipal currentUser
+    ) {
+        return ResponseEntity.ok(
+            courseService.getCourseById(course_id, currentUser.getUid(), currentUser.getRole())
+        );
     }
 
     @PostMapping("/")

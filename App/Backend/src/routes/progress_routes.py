@@ -97,3 +97,32 @@ def get_my_course_progress(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         ) from e
+
+
+@router.get("/my-progress")
+def get_all_my_progress(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("student"))
+):
+    student = db.query(Student).filter(Student.uid == current_user.uid).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student profile not found"
+        )
+    from Backend.src.models.lesson import Lesson
+    from Backend.src.models.progress import LessonProgress
+
+    records = db.query(LessonProgress).filter(LessonProgress.student_id == student.student_id).all()
+    res = []
+    for r in records:
+        lesson = db.query(Lesson).filter(Lesson.lesson_id == r.lesson_id).first()
+        res.append({
+            "student_id": r.student_id,
+            "lesson_id": r.lesson_id,
+            "progress_percentage": float(r.progress_percentage),
+            "completed": r.completed,
+            "completed_date": r.completed_date,
+            "lesson_title": lesson.lesson_title if lesson else None
+        })
+    return res

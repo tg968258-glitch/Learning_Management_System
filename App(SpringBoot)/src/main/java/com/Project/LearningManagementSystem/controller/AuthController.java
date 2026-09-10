@@ -3,6 +3,7 @@ package com.Project.LearningManagementSystem.controller;
 import com.Project.LearningManagementSystem.dto.AuthDtos.AcceptTeacherInviteRequest;
 import com.Project.LearningManagementSystem.dto.AuthDtos.ForgotPasswordRequest;
 import com.Project.LearningManagementSystem.dto.AuthDtos.LoginRequest;
+import com.Project.LearningManagementSystem.dto.AuthDtos.InvitationDetailsResponse;
 import com.Project.LearningManagementSystem.dto.AuthDtos.LogoutRequest;
 import com.Project.LearningManagementSystem.dto.AuthDtos.RefreshTokenRequest;
 import com.Project.LearningManagementSystem.dto.AuthDtos.RegisterRequest;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -35,6 +37,11 @@ public class AuthController {
     private final AuthService authService;
     private final InvitationService invitationService;
 
+    @GetMapping("/invitation-details")
+    public ResponseEntity<InvitationDetailsResponse> getInvitationDetails(@RequestParam String token) {
+        return ResponseEntity.ok(invitationService.getInvitationDetails(token));
+    }
+
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(authService.registerUser(request));
@@ -42,8 +49,9 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
-        Map<String, Object> result = authService.authenticateUser(request);
-        return ResponseEntity.ok(Map.of("message", "Login successful", "data", result));
+        Map<String, Object> result = new java.util.HashMap<>(authService.authenticateUser(request));
+        result.put("message", "Login successful");
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/logout")

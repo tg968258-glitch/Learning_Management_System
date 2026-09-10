@@ -10,6 +10,7 @@ from Backend.src.schemas.notifications import (
 )
 from Backend.src.services.notification_service import (
     create_notification,
+    get_unread_notification_count,
     get_user_notifications,
     mark_all_notifications_as_read,
     mark_notification_as_read,
@@ -19,6 +20,14 @@ router = APIRouter(
     prefix="/notifications",
     tags=["Notifications"]
 )
+
+
+@router.get("/unread-count")
+def get_unread_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return {"count": get_unread_notification_count(db, current_user.uid)}
 
 
 @router.get("/my-notifications", response_model=list[NotificationResponse])

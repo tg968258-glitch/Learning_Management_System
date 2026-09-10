@@ -21,11 +21,13 @@ class AnnouncementRepository:
     @staticmethod
     def create(db: Session, announcement_data: dict, created_by_uid: str) -> Announcement:
         announcement = Announcement(
-            course_id=announcement_data["course_id"],
+            course_id=announcement_data.get("course_id"),
             session_id=announcement_data.get("session_id"),
             created_by=created_by_uid,
             title=announcement_data["title"],
             message=announcement_data["message"],
+            audience=announcement_data.get("audience", "all"),
+            target_teacher_id=announcement_data.get("target_teacher_id"),
             created_at=datetime.utcnow()
         )
         db.add(announcement)

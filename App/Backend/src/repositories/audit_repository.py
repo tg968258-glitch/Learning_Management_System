@@ -10,14 +10,29 @@ class AuditRepository:
         db: Session,
         uid: str | None = None,
         entity_type: str | None = None,
-        limit: int = 100
-    ) -> list[AuditLog]:
+        from_datetime: datetime | None = None,
+        to_datetime: datetime | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[AuditLog], int]:
         query = db.query(AuditLog)
         if uid:
             query = query.filter(AuditLog.uid == uid)
         if entity_type:
             query = query.filter(AuditLog.entity_type == entity_type)
-        return query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+        if from_datetime:
+            query = query.filter(AuditLog.created_at >= from_datetime)
+        if to_datetime:
+            query = query.filter(AuditLog.created_at < to_datetime)
+
+        total = query.count()
+        items = (
+            query.order_by(AuditLog.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return items, total
 
     @staticmethod
     def log(

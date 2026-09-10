@@ -21,6 +21,7 @@ import com.Project.LearningManagementSystem.exception.BadRequestException;
 import com.Project.LearningManagementSystem.exception.ForbiddenException;
 import com.Project.LearningManagementSystem.exception.ResourceNotFoundException;
 import com.Project.LearningManagementSystem.repository.LessonRepository;
+import com.Project.LearningManagementSystem.repository.ModuleRepository;
 import com.Project.LearningManagementSystem.repository.QuestionOptionRepository;
 import com.Project.LearningManagementSystem.repository.QuizAttemptRepository;
 import com.Project.LearningManagementSystem.repository.QuizQuestionRepository;
@@ -46,6 +47,17 @@ public class QuizService {
     private final QuizAttemptRepository attemptRepository;
     private final StudentAnswerRepository answerRepository;
     private final LessonRepository lessonRepository;
+    private final ModuleRepository moduleRepository;
+    private final CourseAccessService courseAccessService;
+
+    private Integer courseIdForLesson(Integer lessonId) {
+        Integer moduleId = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lesson not found: " + lessonId))
+                .getModuleId();
+        return moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Module not found: " + moduleId))
+                .getCourseId();
+    }
 
     public QuizResponse toQuizResponse(Quiz q) {
         return new QuizResponse(
@@ -63,6 +75,10 @@ public class QuizService {
     @Cacheable(value = "quizzes", key = "#courseId")
     public List<QuizResponse> getQuizzesByCourse(Integer courseId) {
         return quizRepository.findByCourseId(courseId).stream().map(this::toQuizResponse).toList();
+    }
+
+    public List<QuizResponse> getQuizzesByLesson(Integer lessonId) {
+        return quizRepository.findByLessonId(lessonId).stream().map(this::toQuizResponse).toList();
     }
 
     public QuizDetailResponse getQuizDetail(Integer quizId, boolean isStudent) {
@@ -104,10 +120,8 @@ public class QuizService {
 
     @Transactional
     @CacheEvict(value = "quizzes", allEntries = true)
-    public QuizResponse createQuiz(QuizCreateRequest request) {
-        lessonRepository.findById(request.getLesson_id())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Lesson not found: " + request.getLesson_id()));
+    public QuizResponse createQuiz(QuizCreateRequest request, String teacherUid) {
+        courseAccessService.requireAssignedTeacher(teacherUid, courseIdForLesson(request.getLesson_id()));
 
         if (request.getPassing_marks().compareTo(request.getMax_marks()) > 0) {
             throw new BadRequestException("Passing marks cannot exceed maximum marks");
@@ -130,9 +144,10 @@ public class QuizService {
 
     @Transactional
     @CacheEvict(value = "quizzes", allEntries = true)
-    public QuizResponse updateQuiz(Integer quizId, QuizUpdateRequest request) {
+    public QuizResponse updateQuiz(Integer quizId, QuizUpdateRequest request, String teacherUid) {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quiz not found: " + quizId));
+        courseAccessService.requireAssignedTeacher(teacherUid, courseIdForLesson(quiz.getLessonId()));
 
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             quiz.setTitle(request.getTitle().trim());
@@ -166,19 +181,19 @@ public class QuizService {
 
     @Transactional
     @CacheEvict(value = "quizzes", allEntries = true)
-    public void deleteQuiz(Integer quizId) {
-        if (!quizRepository.existsById(quizId)) {
-            throw new ResourceNotFoundException("Quiz not found: " + quizId);
-        }
+    public void deleteQuiz(Integer quizId, String teacherUid) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found: " + quizId));
+        courseAccessService.requireAssignedTeacher(teacherUid, courseIdForLesson(quiz.getLessonId()));
         quizRepository.deleteById(quizId);
     }
 
     @Transactional
     @CacheEvict(value = "quizzes", allEntries = true)
-    public QuestionResponse addQuestion(Integer quizId, QuestionCreateRequest request) {
-        if (!quizRepository.existsById(quizId)) {
-            throw new ResourceNotFoundException("Quiz not found: " + quizId);
-        }
+    public QuestionResponse addQuestion(Integer quizId, QuestionCreateRequest request, String teacherUid) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quiz not found: " + quizId));
+        courseAccessService.requireAssignedTeacher(teacherUid, courseIdForLesson(quiz.getLessonId()));
         if (request.getOptions() == null || request.getOptions().isEmpty()) {
             throw new BadRequestException("A question must have at least one option");
         }

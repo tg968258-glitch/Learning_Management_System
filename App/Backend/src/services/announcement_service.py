@@ -20,9 +20,11 @@ def create_announcement(
     announcement_data: dict,
     created_by_uid: str
 ) -> Announcement:
-    course = CourseRepository.get_by_id(db, announcement_data["course_id"])
-    if not course:
-        raise ValueError("Course does not exist")
+    course_id = announcement_data.get("course_id")
+    if course_id:
+        course = CourseRepository.get_by_id(db, course_id)
+        if not course:
+            raise ValueError("Course does not exist")
 
     if announcement_data.get("session_id"):
         session = SessionRepository.get_by_id(db, announcement_data["session_id"])

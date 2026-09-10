@@ -15,10 +15,10 @@ class Announcement(Base):
         autoincrement=True
     )
 
-    course_id: Mapped[int] = mapped_column(
+    course_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("courses.course_id"),
-        nullable=False
+        nullable=True
     )
 
     session_id: Mapped[int | None] = mapped_column(
@@ -52,4 +52,10 @@ class Announcement(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True
+    )
+
+    audience: Mapped[str] = mapped_column(String(20), default="all", nullable=False)
+
+    target_teacher_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("teachers.teacher_id"), nullable=True
     )
