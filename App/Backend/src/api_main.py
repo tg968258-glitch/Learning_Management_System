@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 from Backend.database import Base, SessionLocal, engine
 from Backend.src.core.security import decode_access_token
 from Backend.src.repositories.audit_repository import AuditRepository
+from Backend.src.scripts.create_admin import create_admin
 
 # Auto-create all tables in PostgreSQL
 Base.metadata.create_all(bind=engine)
@@ -106,6 +107,7 @@ def startup_event():
         print("Valkey connected successfully")
     else:
         print("Valkey connection failed")
+    create_admin()
 
 # Ensure uploads directory exists and mount for static file access
 UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads"))
